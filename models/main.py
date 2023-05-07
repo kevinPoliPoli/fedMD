@@ -48,23 +48,55 @@ def main():
     run, job_name = init_wandb(args, alpha, run_id=args.wandb_run_id)
 
     # Obtain the path to client's model (e.g. cifar10/cnn.py), client class and servers class
-    model_path = '%s/%s.py' % (args.dataset, args.model)
-    dataset_path = '%s/%s.py' % (args.dataset, 'dataloader')
+    public_dataset_path = 'cifar10/dataloader.py'
+    private_dataset_path = 'cifar100/dataloader.py'
+
     server_path = 'servers/%s.py' % (args.algorithm + '_server')
     client_path = 'clients/%s.py' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
-    check_init_paths([model_path, dataset_path, server_path, client_path])
+    check_init_paths([public_dataset_path, private_dataset_path, server_path, client_path])
 
     model_path = '%s.%s' % (args.dataset, args.model)
-    dataset_path = '%s.%s' % (args.dataset, 'dataloader')
+
+    public_dataset_path = 'cifar10.dataloader'
+    private_dataset_path = 'cifar100.dataloader'
+    
+    server_model_path = 'cifar10/resnet.py'
+    
+    cnn_model_path = 'cifar100/cnn.py' 
+    resnet_model_path = 'cifar100/resnet.py'
+    resnet32_model_path = 'cifar100/resnet32.py'
+    vgg_model_path = 'cifar100/vgg.py'
+    inception_model_path = 'cifar100/inception.py'
+    
+
     server_path = 'servers.%s' % (args.algorithm + '_server')
     client_path = 'clients.%s' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
 
+    model_paths = [cnn_model_path, resnet_model_path, resnet32_model_path, vgg_model_path, inception_model_path]
+    
+    
+    server_mod = importlib.import_module(server_model_path)
+    ServerModel = getattr(server_mod, 'ServerModel')
+    pub_dataset = importlib.import_module(public_dataset_path)
+    PublicDataset = getattr(pub_dataset, 'PublicDataset')
+    
+    class_models = []
+    for m in model_paths:
+        mod = importlib.import_module(m)
+        ClientModel = getattr(mod, 'ClientModel')
+        dataset = importlib.import_module(private_dataset_path)
+        ClientDataset = getattr(dataset, 'ClientDataset')
+        
+        class_models.append(ClientModel)
+
+    """
     # Load model and dataset
     print('############################## %s ##############################' % model_path)
     mod = importlib.import_module(model_path)
     ClientModel = getattr(mod, 'ClientModel')
     dataset = importlib.import_module(dataset_path)
     ClientDataset = getattr(dataset, 'ClientDataset')
+    """
 
     # Load client and server
     print("Running experiment with server", server_path, "and client", client_path)
@@ -76,13 +108,8 @@ def main():
     num_rounds = args.num_rounds if args.num_rounds != -1 else tup[0]
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
-
-    model_params = MODEL_PARAMS[model_path]
-    if args.lr != -1:
-        model_params_list = list(model_params)
-        model_params_list[0] = args.lr
-        model_params = tuple(model_params_list)
-
+    
+    """
     # Create client model, and share params with servers model
     client_model = ClientModel(*model_params, device)
     if args.load and wandb.run.resumed:  # load model from checkpoint
@@ -93,17 +120,32 @@ def main():
             run = init_wandb(args, device, alpha, run_id=None)
 
     client_model = client_model.to(device)
-
+    """
+    
+    #create client models
+    c_models = []
+    for i in range(len(class_models)):
+        model_params = MODEL_PARAMS[model_paths[i]]
+        client_model = class_models[i](*model_params, device)
+        client_model = client_model.to(device)
+        c_models.append(client_model)
+        
+    server_model = ServerModel(MODEL_PARAMS[server_path], device)
+    server_model = server_model.to(device)
+        
     #### Create server ####
-    server_params = define_server_params(args, client_model, args.algorithm,
-                                         opt_ckpt=checkpoint['opt_state_dict'] if args.load and 'opt_state_dict' in checkpoint else None)
+    server_params = define_server_params(args, server_model, args.algorithm)
     server = Server(**server_params)
 
-    start_round = 0 if not args.load else checkpoint['round']
+    start_round = 0
     print("Start round:", start_round)
 
     #### Create and set up clients ####
-    train_clients, test_clients = setup_clients(args, client_model, Client, ClientDataset, run, device)
+    """
+    Different models for each client
+    """
+    
+    train_clients, test_clients = setup_clients(args, c_models, Client, ClientDataset, run, device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     test_client_ids, test_client_num_samples = server.get_clients_info(test_clients)
     if set(train_client_ids) == set(test_client_ids):
@@ -113,6 +155,7 @@ def main():
 
     server.set_num_clients(len(train_clients))
 
+
     # Initial status
     print('--- Random Initialization ---')
 
@@ -121,11 +164,15 @@ def main():
 
     ckpt_path, res_path, file, ckpt_name = create_paths(args, current_time, alpha=alpha, resume=wandb.run.resumed)
     ckpt_name = job_name + '_' + current_time + '.ckpt'
+
+    """
     if args.load:
         ckpt_name = ckpt_path_resumed
         if 'round' in ckpt_name:
             ckpt_name = ckpt_name.partition("_")[2]
         print("Checkpoint name:", ckpt_name)
+    """
+    
 
     fp = open(file, "w")
     last_accuracies = []
@@ -142,8 +189,10 @@ def main():
             swa_start = int(.75 * num_rounds)
         if wandb.run.resumed and start_round > swa_start:
             print("Loading SWA model...")
+            """
             server.setup_swa_model(swa_ckpt=checkpoint['swa_model'])
             swa_n = checkpoint['swa_n']
+            """
             print("SWA n:", swa_n)
         print("SWA starts @ round:", swa_start)
 
@@ -165,10 +214,24 @@ def main():
             if args.swa_c > 1:
                 lr = schedule_cycling_lr(i, args.swa_c, args.lr, args.swa_lr)
                 server.update_clients_lr(lr)
-
+                
+                
+        """
+        FEDMD:
+        Server chaima train model, per ogni client si fa ritornare il risultato del Communicate e calcola l'average che viene ritornato qui sotto
+        """
+        
         ##### Simulate servers model training on selected clients' data #####
         sys_metrics = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size,
                                          minibatch=args.minibatch)
+
+        """
+        Ottenuto l'average viene chiamato ogni client del round che devono fare digest e revisit 
+        
+        Il modello viene poi updatato e si passa al next round dopo il test
+        """
+
+
 
         ##### Update server model (FedAvg) #####
         print("--- Updating central model ---")
@@ -244,12 +307,16 @@ def create_clients(users, train_data, test_data, model, args, ClientDataset, Cli
     return clients
 
 
-def setup_clients(args, model, Client, ClientDataset, run=None, device=None,):
+def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
     """Instantiates clients based on given train and test data directories.
 
     Return:
         all_clients: list of Client objects.
     """
+    import random
+    
+    model = random.choice(models)
+    
     train_data_dir = os.path.join('..', 'data', args.dataset, 'data', 'train')
     test_data_dir = os.path.join('..', 'data', args.dataset, 'data', 'test')
 

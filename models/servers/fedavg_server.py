@@ -78,6 +78,10 @@ class Server:
             sys_metrics = self._update_sys_metrics(c, sys_metrics)
             self.updates.append((num_samples, copy.deepcopy(update)))
 
+        """
+        calcola il consensus (average) dei client e ritornalo
+        """
+        
         return sys_metrics
 
     def _update_sys_metrics(self, c, sys_metrics):

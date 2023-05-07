@@ -33,6 +33,11 @@ class Client:
         self.run = run
         self.mixup = mixup
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
+        
+        
+        """
+        Inizializzazione: TRASFER LEARNING PER FEDMD
+        """
 
     def train(self, num_epochs=1, batch_size=10, minibatch=None):
         """Trains on self.model using the client's train_data.
@@ -46,6 +51,13 @@ class Client:
             num_samples: number of samples used in training
             update: state dictionary of the trained model
         """
+        
+        
+        """
+        Il train del client deve essere la communicate
+        """
+        
+        
         # Train model
         criterion = nn.CrossEntropyLoss().to(self.device)
         optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
