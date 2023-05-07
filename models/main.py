@@ -60,25 +60,24 @@ def main():
     public_dataset_path = 'cifar10.dataloader'
     private_dataset_path = 'cifar100.dataloader'
     
-    server_model_path = 'cifar10/resnet.py'
+    server_model_path = 'cifar10.resnet'
     
-    cnn_model_path = 'cifar100/cnn.py' 
-    resnet_model_path = 'cifar100/resnet.py'
-    resnet32_model_path = 'cifar100/resnet32.py'
-    vgg_model_path = 'cifar100/vgg.py'
-    inception_model_path = 'cifar100/inception.py'
+    cnn_model_path = 'cifar100.cnn' 
+    resnet_model_path = 'cifar100.resnet'
+    resnet32_model_path = 'cifar100.resnet32'
+    vgg_model_path = 'cifar100.vgg'
+    inception_model_path = 'cifar100.inception'
     
-
     server_path = 'servers.%s' % (args.algorithm + '_server')
     client_path = 'clients.%s' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
 
-    model_paths = [cnn_model_path, resnet_model_path, resnet32_model_path, vgg_model_path, inception_model_path]
+    model_paths = [cnn_model_path, resnet_model_path, resnet32_model_path, vgg_model_path]
     
     
     server_mod = importlib.import_module(server_model_path)
     ServerModel = getattr(server_mod, 'ServerModel')
     pub_dataset = importlib.import_module(public_dataset_path)
-    PublicDataset = getattr(pub_dataset, 'PublicDataset')
+    PublicDataset = getattr(pub_dataset, 'ClientDataset')
     
     class_models = []
     for m in model_paths:
@@ -104,7 +103,7 @@ def main():
     print("Verify client and server:", Client, Server)
 
     # Experiment parameters (e.g. num rounds, clients per round, lr, etc)
-    tup = MAIN_PARAMS[args.dataset][args.t]
+    tup = MAIN_PARAMS['cifar100'][args.t]
     num_rounds = args.num_rounds if args.num_rounds != -1 else tup[0]
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
@@ -129,8 +128,10 @@ def main():
         client_model = class_models[i](*model_params, device)
         client_model = client_model.to(device)
         c_models.append(client_model)
-        
-    server_model = ServerModel(MODEL_PARAMS[server_path], device)
+
+
+    ### AAAAA
+    server_model = ServerModel(MODEL_PARAMS[server_model_path], device)
     server_model = server_model.to(device)
         
     #### Create server ####
@@ -351,7 +352,7 @@ def init_wandb(args, alpha=None, run_id=None):
             alpha = int(alpha)
         configuration.alpha = alpha
 
-    job_name = 'K' + str(args.clients_per_round) + '_N' + str(args.num_rounds) + '_' + args.model + '_E' + \
+    job_name = 'K' + str(args.clients_per_round) + '_N' + str(args.num_rounds) + '_' + '_E' + \
                str(args.num_epochs) + '_clr' + str(args.lr) + '_' + args.algorithm
     if alpha is not None:
         job_name = 'alpha' + str(alpha) + '_' + job_name
@@ -388,7 +389,7 @@ def init_wandb(args, alpha=None, run_id=None):
                 # Set entity to specify your username or team name
                 entity="federated-learning",
                 # Set the project where this run will be logged
-                project='fl_' + args.dataset,
+                project='fl_',
                 group=group_name,
                 # Track hyperparameters and run metadata
                 config=configuration,

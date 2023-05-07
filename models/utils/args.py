@@ -14,7 +14,7 @@ def parse_args():
                     help='name of dataset;',
                     type=str,
                     choices=DATASETS,
-                    required=True)
+                    required=False)
     ## FEDERATED SETTING ##
     parser.add_argument('--num-rounds',
                         help='number of rounds to simulate;',
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument('-model',
                         help='name of model;',
                         type=str,
-                        required=True)
+                        required=False)
     parser.add_argument('-algorithm',
                         help='algorithm used for server aggregation;',
                         choices=SERVER_ALGORITHMS,

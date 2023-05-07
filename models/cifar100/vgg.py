@@ -2,9 +2,9 @@ import torch
 import torch.nn as nn
 
 
-class ClientModule(nn.Module):
-    def __init__(self, num_classes=10):
-        super(ClientModule, self).__init__()
+class ClientModel(nn.Module):
+    def __init__(self, lr, num_classes, device):
+        super(ClientModel, self).__init__()
         self.layer1 = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(64),
@@ -97,8 +97,8 @@ class ClientModule(nn.Module):
         return out
     
     
-def model_size(self):
-    tot_size = 0
-    for param in self.parameters():
-        tot_size += param.size()[0]
-    return tot_size
+    def model_size(self):
+        tot_size = 0
+        for param in self.parameters():
+            tot_size += param.size()[0]
+        return tot_size
