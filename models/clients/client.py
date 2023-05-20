@@ -9,6 +9,7 @@ import torch.optim as optim
 import warnings
 from baseline_constants import ACCURACY_KEY
 from datetime import datetime
+import importlib
 
 
 class Client:
@@ -34,10 +35,79 @@ class Client:
         self.mixup = mixup
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
         
+        public_dataset_path = 'cifar10/dataloader.py'
+        pub_dataset = importlib.import_module(public_dataset_path)
+        self.public_dataset = getattr(pub_dataset, 'ClientDataset')
+        self.public_loader =  torch.utils.data.DataLoader(self.public_dataset, batch_size=self.batch_size, shuffle=True) if self.public_dataset.__len__() != 0 else None
         
-        """
-        Inizializzazione: TRASFER LEARNING PER FEDMD
-        """
+    
+    def transferLearningInit(self, num_epochs=1, batch_size=10):
+      model = self.trainingMD(self.model, self.public_loader)
+      model = self.trainingMD(model, self.trainloader)
+
+      self.model = model
+  
+
+    def communicateStep(self):
+        self.model.eval()
+        predictions = []
+        with torch.no_grad():
+            for inputs in self.public_loader:
+                # Move data to the device (CPU or GPU)
+                inputs = inputs.to(self.device)
+                
+                # Forward pass
+                outputs = self.model(inputs)
+                
+                # Get predicted scores (you can modify this based on your specific model output)
+                _, predicted = torch.max(outputs.data, 1)
+                
+                predictions.extend(predicted.cpu().numpy())
+        
+        return predictions, len(self.public_loader)
+      
+
+    def trainingMD(self, model, train_loader, num_epochs=1, batch_size=10):
+       criterion = nn.CrossEntropyLoss().to(self.device)
+       optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
+
+       for epoch in range(num_epochs):
+        running_loss = 0.0
+        correct_predictions = 0
+        total_samples = 0
+        
+        for inputs, labels in train_loader:
+          # Move data to the device (CPU or GPU)
+          inputs = inputs.to(self.device)
+          labels = labels.to(self.device)
+              
+              # Zero the gradients
+          optimizer.zero_grad()
+              
+              # Forward pass
+          outputs = model(inputs)
+              
+              # Compute loss
+          loss = criterion(outputs, labels)
+              
+              # Backward pass and optimization
+          loss.backward()
+          optimizer.step()
+              
+              # Track training statistics
+          running_loss += loss.item() * inputs.size(0)
+          _, predicted = torch.max(outputs.data, 1)
+          correct_predictions += (predicted == labels).sum().item()
+          total_samples += labels.size(0)
+          
+        epoch_loss = running_loss / total_samples
+        epoch_accuracy = correct_predictions / total_samples
+        
+       print(f'Epoch {epoch+1}/{num_epochs} - Loss: {epoch_loss:.4f} - Accuracy: {epoch_accuracy:.4f}')
+      
+       return model
+      
+        
 
     def train(self, num_epochs=1, batch_size=10, minibatch=None):
         """Trains on self.model using the client's train_data.
@@ -51,13 +121,6 @@ class Client:
             num_samples: number of samples used in training
             update: state dictionary of the trained model
         """
-        
-        
-        """
-        Il train del client deve essere la communicate
-        """
-        
-        
         # Train model
         criterion = nn.CrossEntropyLoss().to(self.device)
         optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)

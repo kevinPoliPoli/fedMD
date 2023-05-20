@@ -75,7 +75,7 @@ def main():
     
     
     server_mod = importlib.import_module(server_model_path)
-    ServerModel = getattr(server_mod, 'ServerModel')
+    ServerModel = getattr(server_mod, 'ClientModel')
     pub_dataset = importlib.import_module(public_dataset_path)
     PublicDataset = getattr(pub_dataset, 'ClientDataset')
     
@@ -111,13 +111,6 @@ def main():
     """
     # Create client model, and share params with servers model
     client_model = ClientModel(*model_params, device)
-    if args.load and wandb.run.resumed:  # load model from checkpoint
-        client_model, checkpoint, ckpt_path_resumed = resume_run(client_model, args, wandb.run)
-        if args.restart:    # start new wandb run
-            wandb.finish()
-            print("Starting new run...")
-            run = init_wandb(args, device, alpha, run_id=None)
-
     client_model = client_model.to(device)
     """
     
@@ -129,13 +122,19 @@ def main():
         client_model = client_model.to(device)
         c_models.append(client_model)
 
-
-    ### AAAAA
-    server_model = ServerModel(MODEL_PARAMS[server_model_path], device)
+    server_p = MODEL_PARAMS[server_model_path]
+    server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
+
+    if args.load and wandb.run.resumed:  # load model from checkpoint
+      client_model, checkpoint, ckpt_path_resumed = resume_run(server_model, args, wandb.run)
+      if args.restart:    # start new wandb run
+        wandb.finish()
+        print("Starting new run...")
+        run = init_wandb(args, device, alpha, run_id=None)
         
     #### Create server ####
-    server_params = define_server_params(args, server_model, args.algorithm)
+    server_params = define_server_params(args, server_model, args.algorithm, opt_ckpt=checkpoint['opt_state_dict'] if args.load and 'opt_state_dict' in checkpoint else None)
     server = Server(**server_params)
 
     start_round = 0
@@ -163,23 +162,24 @@ def main():
     start_time = datetime.now()
     current_time = start_time.strftime("%m%d%y_%H:%M:%S")
 
-    ckpt_path, res_path, file, ckpt_name = create_paths(args, current_time, alpha=alpha, resume=wandb.run.resumed)
+    ckpt_path, res_path, file, ckpt_name = create_paths(args, 'resnet', current_time, alpha=alpha, resume=wandb.run.resumed)
     ckpt_name = job_name + '_' + current_time + '.ckpt'
 
-    """
     if args.load:
         ckpt_name = ckpt_path_resumed
         if 'round' in ckpt_name:
             ckpt_name = ckpt_name.partition("_")[2]
         print("Checkpoint name:", ckpt_name)
-    """
     
-
     fp = open(file, "w")
     last_accuracies = []
 
-    print_stats(start_round, server, train_clients, train_client_num_samples, test_clients, test_client_num_samples,
-                args, fp)
+    #print_stats(start_round, server, train_clients, c_models,train_client_num_samples, test_clients, test_client_num_samples,
+    #           args, fp)
+
+
+
+
     wandb.log({'round': start_round}, commit=True)
 
     ## Setup SWA
@@ -190,10 +190,10 @@ def main():
             swa_start = int(.75 * num_rounds)
         if wandb.run.resumed and start_round > swa_start:
             print("Loading SWA model...")
-            """
+            
             server.setup_swa_model(swa_ckpt=checkpoint['swa_model'])
             swa_n = checkpoint['swa_n']
-            """
+          
             print("SWA n:", swa_n)
         print("SWA starts @ round:", swa_start)
 
@@ -318,8 +318,8 @@ def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
     
     model = random.choice(models)
     
-    train_data_dir = os.path.join('..', 'data', args.dataset, 'data', 'train')
-    test_data_dir = os.path.join('..', 'data', args.dataset, 'data', 'test')
+    train_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'train')
+    test_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'test')
 
     train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
 
@@ -402,11 +402,11 @@ def init_wandb(args, alpha=None, run_id=None):
 
     return run, job_name
 
-def print_stats(num_round, server, train_clients, train_num_samples, test_clients, test_num_samples, args, fp):
-    train_stat_metrics = server.test_model(train_clients, args.batch_size, set_to_use='train')
+def print_stats(num_round, server, train_clients, c_models, train_num_samples, test_clients, test_num_samples, args, fp):
+    train_stat_metrics = server.test_model(train_clients, c_models, args.batch_size, set_to_use='train')
     val_metrics = print_metrics(train_stat_metrics, train_num_samples, fp, prefix='train_')
 
-    test_stat_metrics = server.test_model(test_clients, args.batch_size, set_to_use='test' )
+    test_stat_metrics = server.test_model(test_clients, c_models, args.batch_size, set_to_use='test' )
     test_metrics = print_metrics(test_stat_metrics, test_num_samples, fp, prefix='{}_'.format('test'))
 
     wandb.log({'Validation accuracy': val_metrics[0], 'Validation loss': val_metrics[1],

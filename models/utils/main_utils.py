@@ -5,14 +5,14 @@ import torch
 import wandb
 
 
-def create_paths(args, current_time, alpha=None, resume=False):
+def create_paths(args, model, current_time, alpha=None, resume=False):
     """ Create paths for checkpoints, plots, analysis results and experiment results. """
-    ckpt_path = os.path.join('checkpoints', args.dataset)
+    ckpt_path = os.path.join('checkpoints', 'cifar100')
     if not os.path.exists(ckpt_path):
         os.makedirs(ckpt_path)
 
     # Create file for storing results
-    res_path = os.path.join('results', args.dataset, args.model)
+    res_path = os.path.join('results', 'cifar100', model)
     if not os.path.exists(res_path):
         os.makedirs(res_path)
 

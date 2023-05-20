@@ -72,15 +72,21 @@ class Server:
                    CLIENT_TASK_KEY: {}
                    } for c in clients}
 
+
+        logits = 0
         for c in clients:
-            c.model.load_state_dict(self.model)
-            num_samples, update = c.train(num_epochs, batch_size, minibatch)
+            update, num_samples = c.communicateStep()
             sys_metrics = self._update_sys_metrics(c, sys_metrics)
             self.updates.append((num_samples, copy.deepcopy(update)))
-
-        """
-        calcola il consensus (average) dei client e ritornalo
-        """
+            logits += update
+        
+            
+        logits /= len(clients)
+        
+        
+        for c in clients:
+            ### fai digest e revisit
+            x = 0
         
         return sys_metrics
 
@@ -97,7 +103,7 @@ class Server:
         sys_metrics[c.id][CLIENT_TASK_KEY] = c.get_task_info()
         return sys_metrics
 
-    def test_model(self, clients_to_test, batch_size, set_to_use='test'):
+    def test_model(self, clients_to_test, client_models, batch_size, set_to_use='test'):
         """Tests self.model on given clients.
 
         Tests model on self.selected_clients if clients_to_test=None.
@@ -112,13 +118,13 @@ class Server:
         if clients_to_test is None:
             clients_to_test = self.selected_clients
 
-        for client in clients_to_test:
+        for i in range(len(clients_to_test)):
             if self.swa_model is None:
-                client.model.load_state_dict(self.model)
+                (clients_to_test[i]).model.load_state_dict(copy.deepcopy(client_models[i].state_dict()))
             else:
-                client.model.load_state_dict(self.swa_model.state_dict())
-            c_metrics = client.test(batch_size, set_to_use)
-            metrics[client.id] = c_metrics
+                (clients_to_test[i]).model.load_state_dict(self.swa_model.state_dict())
+            c_metrics = (clients_to_test[i]).test(batch_size, set_to_use)
+            metrics[(clients_to_test[i]).id] = c_metrics
 
         return metrics
 
