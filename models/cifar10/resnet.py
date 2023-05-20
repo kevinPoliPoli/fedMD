@@ -13,6 +13,7 @@ class ClientModel(nn.Module):
         self.num_classes = num_classes
         self.image_channels = 3
         self.in_channels = 16
+        self.device = device
 
         self.conv1 = nn.Conv2d(self.image_channels, 16, kernel_size=3, stride=1, padding=1, bias=False)
         #self.bn1 = nn.BatchNorm2d(16)

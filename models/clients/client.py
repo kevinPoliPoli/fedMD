@@ -14,7 +14,7 @@ import importlib
 
 class Client:
 
-    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, device=None,
+    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, public_dataset, device=None,
                  num_workers=0, run=None, mixup=False, mixup_alpha=1.0):
         self._model = model
         self.id = client_id
@@ -34,11 +34,9 @@ class Client:
         self.run = run
         self.mixup = mixup
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
-        
-        public_dataset_path = 'cifar10/dataloader.py'
-        pub_dataset = importlib.import_module(public_dataset_path)
-        self.public_dataset = getattr(pub_dataset, 'ClientDataset')
-        self.public_loader =  torch.utils.data.DataLoader(self.public_dataset, batch_size=self.batch_size, shuffle=True) if self.public_dataset.__len__() != 0 else None
+
+        self.public_dataset = public_dataset
+        self.public_loader =  torch.utils.data.DataLoader(self.public_dataset, batch_size=self.batch_size, shuffle=True)
         
     
     def transferLearningInit(self, num_epochs=1, batch_size=10):
