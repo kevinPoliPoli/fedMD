@@ -216,23 +216,19 @@ def main():
                 lr = schedule_cycling_lr(i, args.swa_c, args.lr, args.swa_lr)
                 server.update_clients_lr(lr)
                 
-                
-        """
-        FEDMD:
-        Server chaima train model, per ogni client si fa ritornare il risultato del Communicate e calcola l'average che viene ritornato qui sotto
-        """
-        
+    
         ##### Simulate servers model training on selected clients' data #####
-        sys_metrics = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size,
+        _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size,
                                          minibatch=args.minibatch)
 
+        server.evaluateClients()
         """
         Ottenuto l'average viene chiamato ogni client del round che devono fare digest e revisit 
         
         Il modello viene poi updatato e si passa al next round dopo il test
         """
 
-
+        """
 
         ##### Update server model (FedAvg) #####
         print("--- Updating central model ---")
@@ -285,6 +281,7 @@ def main():
     wandb.save(file)
     print("File saved in path: %s" % res_path)
     wandb.finish()
+    """
 
 
 def online(clients):
@@ -292,13 +289,14 @@ def online(clients):
     return clients
 
 
-def create_clients(users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run=None, device=None):
+def create_clients(users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
     client_params['model'] = model
     client_params['run'] = run
     client_params['device'] = device
     client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
+    client_params['public_test_dataset'] = PublicDataset(public_test_data, users_p, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     for u in users:
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
@@ -323,15 +321,16 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     test_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'test')
     
     public_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'train')
+    public_test_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'test')
     
     
 
     train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    users_p, _, _, _, public_data, _ = read_data(public_data_dir, public_data_dir)
+    users_p, _, _, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir)
     
     
-    train_clients = create_clients(train_users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run, device)
-    test_clients = create_clients(test_users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run, device)
+    train_clients = create_clients(train_users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run, device)
+    test_clients = create_clients(test_users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run, device)
 
     return train_clients, test_clients
 

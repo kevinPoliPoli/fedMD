@@ -13,7 +13,7 @@ import importlib
 
 class Client:
 
-    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, public_dataset, device=None,
+    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, public_dataset, public_test_dataset, device=None,
                  num_workers=0, run=None, mixup=False, mixup_alpha=1.0):
         self._model = model
         self.id = client_id
@@ -37,7 +37,8 @@ class Client:
         self.public_dataset = public_dataset
         self.public_loader =  torch.utils.data.DataLoader(public_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers) if self.public_dataset.__len__() != 0 else None
   
-    
+        self.public_test_dataset = public_test_dataset
+        self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
     def transferLearningInit(self, num_epochs=1, batch_size=10):
       model = self.trainingMD(self.model, self.public_loader)
@@ -63,7 +64,7 @@ class Client:
                 
                 predictions.extend(outputs.cpu().numpy())
         
-        return predictions, len(self.public_loader)
+        return predictions
       
     def digest(self, consensus):
       consensus_tensor = torch.tensor(consensus)
@@ -78,8 +79,7 @@ class Client:
 
       criterion = nn.CrossEntropyLoss().to(self.device)
       optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
-      losses = np.empty(num_epochs)
-
+      
       for epoch in range(num_epochs):
        
         if Digest:
@@ -109,7 +109,25 @@ class Client:
             optimizer.step()  
           
       
-  
+    def evaluateFEDMD(self):
+        self.model.eval()
+        with torch.no_grad():
+            for j, data in enumerate(self.public_test_loader):
+                
+                # Move data to the device (CPU or GPU)
+                input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
+
+                # Forward pass
+                outputs = self.model(input_data_tensor)
+                
+                # Get predicted scores (you can modify this based on your specific model output)
+                _, predicted = torch.max(outputs.data, 1)
+                running_corrects += torch.sum(predicted == target_data_tensor).data.item()
+                
+            accuracy = running_corrects / float(len(self.public_test_loader))
+        return accuracy
+ 
+
     def train(self, num_epochs=1, batch_size=10, minibatch=None):
         """Trains on self.model using the client's train_data.
 

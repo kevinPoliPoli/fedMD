@@ -77,7 +77,7 @@ class Server:
 
         logits = []
         for c in clients:
-            probabilities, num_samples = c.communicateStep()
+            probabilities = c.communicateStep()
             #sys_metrics = self._update_sys_metrics(c, sys_metrics)
             #self.updates.append((num_samples, copy.deepcopy(update)))
             logits.append(probabilities)
@@ -107,6 +107,23 @@ class Server:
 
         print("Finito FEDMD")      
         return sys_metrics
+    
+
+    
+    def evaluateClients(self, clients=None):
+        if clients is None:
+            clients = self.selected_clients
+        
+        avg_accuracy = 0
+        for c in clients:
+            accuracy = c.evaluateFEDMD()
+            avg_accuracy += accuracy
+            print(f"Accuracy for client {c} is {accuracy}")
+            
+        
+        avg_accuracy = avg_accuracy / len(clients)
+        print(f"Average Accuracy is {avg_accuracy}")
+        
 
     def _update_sys_metrics(self, c, sys_metrics):
         if isinstance(c.model, torch.nn.DataParallel):
