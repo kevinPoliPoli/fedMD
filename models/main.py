@@ -145,7 +145,7 @@ def main():
     Different models for each client
     """
     
-    train_clients, test_clients = setup_clients(args, c_models, Client, ClientDataset, run, device)
+    train_clients, test_clients = setup_clients(args, c_models, Client, ClientDataset, PublicDataset, run, device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     test_client_ids, test_client_num_samples = server.get_clients_info(test_clients)
     if set(train_client_ids) == set(test_client_ids):
@@ -292,24 +292,24 @@ def online(clients):
     return clients
 
 
-def create_clients(users, train_data, test_data, model, args, ClientDataset, Client, public_data, run=None, device=None):
+def create_clients(users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
     client_params['model'] = model
     client_params['run'] = run
     client_params['device'] = device
+    client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     for u in users:
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
         client_params['client_id'] = u
         client_params['train_data'] = c_traindata
         client_params['eval_data'] = c_testdata
-        client_params['public_dataset'] = public_data
         clients.append(Client(**client_params))
     return clients
 
 
-def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
+def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, device=None,):
     """Instantiates clients based on given train and test data directories.
 
     Return:
@@ -327,11 +327,11 @@ def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
     
 
     train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    _, _, _, _, public_data, _ = read_data(public_data_dir, public_data_dir)
+    users_p, _, _, _, public_data, _ = read_data(public_data_dir, public_data_dir)
     
     
-    train_clients = create_clients(train_users, train_data, test_data, model, args, ClientDataset, Client, public_data, run, device)
-    test_clients = create_clients(test_users, train_data, test_data, model, args, ClientDataset, Client, public_data, run, device)
+    train_clients = create_clients(train_users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run, device)
+    test_clients = create_clients(test_users, train_data, test_data, model, args, ClientDataset, Client, public_data, PublicDataset, users_p, run, device)
 
     return train_clients, test_clients
 

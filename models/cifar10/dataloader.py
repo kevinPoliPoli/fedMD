@@ -14,7 +14,7 @@ IMAGES_DIR = os.path.join('..', 'data', 'cifar10', 'data', 'raw', 'img')
 class ClientDataset(Dataset):
     """ CIFAR100 Dataset """
 
-    def __init__(self, data, train=True, loading='training_time', cutout=None):
+    def __init__(self, data, users, public_dataset = False, train=True, loading='training_time', cutout=None):
         """
         Args:
             data: dictionary in the form {'x': list of imgs ids, 'y': list of correspondings labels}
@@ -28,15 +28,19 @@ class ClientDataset(Dataset):
         if data is None:
             return
 
-        for img_name, label in zip(data['x'], data['y']):
-            if loading == 'training_time':
-                self.imgs.append(img_name)
-            else: # loading == 'init'
-                img_path = os.path.join(self.root_dir, img_name)
-                image = Image.open(img_path).convert('RGB')
-                image.load()
-                self.imgs.append(image)
-            self.labels.append(label)
+        if public_dataset:
+          self.create_public_dataset(data, users, loading, train, cutout)
+
+        else:
+          for img_name, label in zip(data['x'], data['y']):
+              if loading == 'training_time':
+                  self.imgs.append(img_name)
+              else: # loading == 'init'
+                  img_path = os.path.join(self.root_dir, img_name)
+                  image = Image.open(img_path).convert('RGB')
+                  image.load()
+                  self.imgs.append(image)
+              self.labels.append(label)
 
         if train:
             self.train_transform = transforms.Compose([
@@ -55,6 +59,42 @@ class ClientDataset(Dataset):
                                         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                                     ])
 
+
+    def create_public_dataset(self, data, users, loading, train, cutout):
+        flag = 0
+        
+        while(flag < 10):
+          for user in users:
+            ud = data[user]
+            flag += 1
+
+            for img_name, label in zip(ud['x'], ud['y']):
+                if loading == 'training_time':
+                  self.imgs.append(img_name)
+                else: # loading == 'init'
+                  img_path = os.path.join(self.root_dir, img_name)
+                  image = Image.open(img_path).convert('RGB')
+                  image.load()
+                  self.imgs.append(image)
+                self.labels.append(label)
+
+
+            if train:
+              self.train_transform = transforms.Compose([
+                                          transforms.RandomCrop(IMAGE_SIZE, padding=4),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                      ])
+              self.test_transform = None
+              if cutout is not None:
+                  self.train_transform.transforms.append(cutout(n_holes=1, length=16))
+          else:
+              self.train_transform = None
+              self.test_transform = transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                      ])
 
     def __len__(self):
         return len(self.labels)

@@ -73,21 +73,39 @@ class Server:
                    } for c in clients}
 
 
-        logits = 0
+    
+
+        logits = []
         for c in clients:
-            update, num_samples = c.communicateStep()
-            sys_metrics = self._update_sys_metrics(c, sys_metrics)
-            self.updates.append((num_samples, copy.deepcopy(update)))
-            logits += update
-        
+            probabilities, num_samples = c.communicateStep()
+            #sys_metrics = self._update_sys_metrics(c, sys_metrics)
+            #self.updates.append((num_samples, copy.deepcopy(update)))
+            logits.append(probabilities)
+            #logits += update
+
+        num_clients = len(logits)
+        num_arrays = len(logits[0])  
+        num_elements = len(logits[0][0])
+
+        result = []
+        for i in range(num_arrays):
+          sum_array = []
+          for j in range(num_elements):
+              sum_element = 0
+              for k in range(num_clients):
+                  sum_element += logits[k][i][j]
+              sum_array.append(sum_element)
+          result.append(sum_array)
             
-        logits /= len(clients)
-        
+            
+        result = [[value / num_clients for value in array] for array in result]
         
         for c in clients:
-            ### fai digest e revisit
-            x = 0
-        
+            c.digest(result)
+            c.revisit()
+
+
+        print("Finito MD")      
         return sys_metrics
 
     def _update_sys_metrics(self, c, sys_metrics):

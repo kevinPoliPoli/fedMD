@@ -36,8 +36,9 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
 
         self.public_dataset = public_dataset
-        self.public_loader =  torch.utils.data.DataLoader(self.public_dataset, batch_size=self.batch_size, shuffle=True)
-        
+        self.public_loader =  torch.utils.data.DataLoader(public_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers) if self.public_dataset.__len__() != 0 else None
+  
+    
     
     def transferLearningInit(self, num_epochs=1, batch_size=10):
       model = self.trainingMD(self.model, self.public_loader)
@@ -50,60 +51,77 @@ class Client:
         self.model.eval()
         predictions = []
         with torch.no_grad():
-            for inputs in self.public_loader:
-                # Move data to the device (CPU or GPU)
-                inputs = inputs.to(self.device)
+            for j, data in enumerate(self.public_loader):
                 
+                # Move data to the device (CPU or GPU)
+                input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
+
                 # Forward pass
-                outputs = self.model(inputs)
+                outputs = self.model(input_data_tensor)
                 
                 # Get predicted scores (you can modify this based on your specific model output)
-                _, predicted = torch.max(outputs.data, 1)
+                #_, predicted = torch.max(outputs.data, 1)
                 
-                predictions.extend(predicted.cpu().numpy())
+                predictions.extend(outputs.cpu().numpy())
         
         return predictions, len(self.public_loader)
       
+    def digest(self, consensus):
+      consensus_tensor = torch.tensor(consensus)
+      self.model = self.trainingMD(self.model, self.public_loader, consensus_tensor, isDigest = True)
 
-    def trainingMD(self, model, train_loader, num_epochs=1, batch_size=10):
-       criterion = nn.CrossEntropyLoss().to(self.device)
-       optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
 
-       for epoch in range(num_epochs):
+    def revisit(self):
+      self.model = self.trainingMD(self.model, self.trainloader)
+
+
+    def trainingMD(self, model, dataset_loader, consensus = None, isDigest=False, num_epochs=1, batch_size=64):
+
+      criterion = nn.CrossEntropyLoss().to(self.device)
+      optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
+      losses = np.empty(num_epochs)
+
+
+      for epoch in range(num_epochs):
         running_loss = 0.0
         correct_predictions = 0
         total_samples = 0
         
-        for inputs, labels in train_loader:
+        for j, data in enumerate(self.trainloader):
           # Move data to the device (CPU or GPU)
-          inputs = inputs.to(self.device)
-          labels = labels.to(self.device)
-              
-              # Zero the gradients
+          input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
+
           optimizer.zero_grad()
+          outputs = model(input_data_tensor)
+
+
+          if(isDigest):
+            start_index = j * batch_size
+            end_index = (j + 1) * batch_size
+            consensus_batch = consensus[start_index:end_index].to(self.device)
+            loss = criterion(outputs, consensus_batch)
+          else:
+            loss = criterion(outputs, target_data_tensor)
               
-              # Forward pass
-          outputs = model(inputs)
-              
-              # Compute loss
-          loss = criterion(outputs, labels)
-              
-              # Backward pass and optimization
           loss.backward()
           optimizer.step()
               
-              # Track training statistics
+          
+          """
           running_loss += loss.item() * inputs.size(0)
           _, predicted = torch.max(outputs.data, 1)
           correct_predictions += (predicted == labels).sum().item()
           total_samples += labels.size(0)
           
+       
+          
         epoch_loss = running_loss / total_samples
         epoch_accuracy = correct_predictions / total_samples
         
-       print(f'Epoch {epoch+1}/{num_epochs} - Loss: {epoch_loss:.4f} - Accuracy: {epoch_accuracy:.4f}')
+      print(f'Epoch {epoch+1}/{num_epochs} - Loss: {epoch_loss:.4f} - Accuracy: {epoch_accuracy:.4f}')
+      """
       
-       return model
+      return model
       
         
 
