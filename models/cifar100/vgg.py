@@ -59,7 +59,7 @@ class ClientModel(nn.Module):
             nn.Linear(4096, 4096),
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(4096, num_classes)
+            nn.Linear(4096, 10)
         )
 
         self.size = self.model_size()

@@ -289,14 +289,18 @@ def online(clients):
     return clients
 
 
-def create_clients(users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run=None, device=None):
+def create_clients(users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
+
+    import random
+    model = random.choice(models)
+
     client_params['model'] = model
     client_params['run'] = run
     client_params['device'] = device
     client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
-    client_params['public_test_dataset'] = PublicDataset(public_test_data, users_p, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
+    client_params['public_test_dataset'] = PublicDataset(public_test_data, users_pt, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     for u in users:
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
@@ -313,9 +317,6 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     Return:
         all_clients: list of Client objects.
     """
-    import random
-    
-    model = random.choice(models)
     
     train_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'train')
     test_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'test')
@@ -326,11 +327,11 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     
 
     train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    users_p, _, _, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir)
+    users_p, _, users_pt, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir)
     
     
-    train_clients = create_clients(train_users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run, device)
-    test_clients = create_clients(test_users, train_data, test_data, model, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, run, device)
+    train_clients = create_clients(train_users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run, device)
+    test_clients = create_clients(test_users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run, device)
 
     return train_clients, test_clients
 

@@ -11,7 +11,7 @@ from typing import Callable
 class ClientModel(nn.Module):
     def __init__(self, lr, num_classes, device):
         super(ClientModel, self).__init__()
-        self.num_classes = num_classes
+        self.num_classes = 10
         self.device = device
         self.lr = lr
 

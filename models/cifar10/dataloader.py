@@ -61,10 +61,12 @@ class ClientDataset(Dataset):
 
 
     def create_public_dataset(self, data, users, loading, train, cutout):
-        flag = 0
-        
-        while(flag < 10):
+       
+          flag = 0
           for user in users:
+            if flag == 10:
+              break
+            
             ud = data[user]
             flag += 1
 

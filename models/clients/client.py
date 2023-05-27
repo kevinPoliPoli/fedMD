@@ -80,8 +80,10 @@ class Client:
       criterion = nn.CrossEntropyLoss().to(self.device)
       optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
       
+      self.model.train()
       for epoch in range(num_epochs):
-       
+        self.model.train()
+        
         if Digest:
           dl = self.public_loader
       
@@ -107,11 +109,15 @@ class Client:
             loss = criterion(outputs, target_data_tensor)
             loss.backward()
             optimizer.step()  
-          
-      
+
+          # Printing loss
+          print(f"Epoch [{epoch + 1}/{num_epochs}], Batch [{j + 1}/{len(dl)}], Loss: {loss.item()}")
+
+           
     def evaluateFEDMD(self):
         self.model.eval()
         with torch.no_grad():
+            running_corrects = 0
             for j, data in enumerate(self.public_test_loader):
                 
                 # Move data to the device (CPU or GPU)
