@@ -105,7 +105,7 @@ class Server:
             c.revisit()
 
 
-        print("Finito MD")      
+        print("Finito FEDMD")      
         return sys_metrics
 
     def _update_sys_metrics(self, c, sys_metrics):

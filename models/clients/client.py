@@ -11,7 +11,6 @@ from baseline_constants import ACCURACY_KEY
 from datetime import datetime
 import importlib
 
-
 class Client:
 
     def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, public_dataset, device=None,
@@ -68,63 +67,49 @@ class Client:
       
     def digest(self, consensus):
       consensus_tensor = torch.tensor(consensus)
-      self.model = self.trainingMD(self.model, self.public_loader, consensus_tensor, isDigest = True)
+      self.trainingMD(consensus_tensor, Digest = True)
 
 
     def revisit(self):
-      self.model = self.trainingMD(self.model, self.trainloader)
+      self.trainingMD(Revisit = True)
 
 
-    def trainingMD(self, model, dataset_loader, consensus = None, isDigest=False, num_epochs=1, batch_size=64):
+    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64):
 
       criterion = nn.CrossEntropyLoss().to(self.device)
       optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
       losses = np.empty(num_epochs)
 
-
       for epoch in range(num_epochs):
-        running_loss = 0.0
-        correct_predictions = 0
-        total_samples = 0
-        
-        for j, data in enumerate(self.trainloader):
-          # Move data to the device (CPU or GPU)
+       
+        if Digest:
+          dl = self.public_loader
+      
+        if Revisit:
+          dl = self.trainloader
+
+        for j, data in enumerate(dl):
           input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
 
           optimizer.zero_grad()
-          outputs = model(input_data_tensor)
+          outputs = self.model(input_data_tensor)
 
-
-          if(isDigest):
+          if Digest:
             start_index = j * batch_size
             end_index = (j + 1) * batch_size
+      
             consensus_batch = consensus[start_index:end_index].to(self.device)
             loss = criterion(outputs, consensus_batch)
-          else:
-            loss = criterion(outputs, target_data_tensor)
-              
-          loss.backward()
-          optimizer.step()
-              
-          
-          """
-          running_loss += loss.item() * inputs.size(0)
-          _, predicted = torch.max(outputs.data, 1)
-          correct_predictions += (predicted == labels).sum().item()
-          total_samples += labels.size(0)
-          
-       
-          
-        epoch_loss = running_loss / total_samples
-        epoch_accuracy = correct_predictions / total_samples
-        
-      print(f'Epoch {epoch+1}/{num_epochs} - Loss: {epoch_loss:.4f} - Accuracy: {epoch_accuracy:.4f}')
-      """
-      
-      return model
-      
-        
+            loss.backward()
+            optimizer.step()
 
+          if Revisit:
+            loss = criterion(outputs, target_data_tensor)
+            loss.backward()
+            optimizer.step()  
+          
+      
+  
     def train(self, num_epochs=1, batch_size=10, minibatch=None):
         """Trains on self.model using the client's train_data.
 

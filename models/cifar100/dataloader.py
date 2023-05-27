@@ -29,14 +29,15 @@ class ClientDataset(Dataset):
             return
 
         for img_name, label in zip(data['x'], data['y']):
-            if loading == 'training_time':
-                self.imgs.append(img_name)
-            else: # loading == 'init'
-                img_path = os.path.join(self.root_dir, img_name)
-                image = Image.open(img_path).convert('RGB')
-                image.load()
-                self.imgs.append(image)
-            self.labels.append(label)
+            if label < 10:
+              if loading == 'training_time':
+                  self.imgs.append(img_name)
+              else: # loading == 'init'
+                  img_path = os.path.join(self.root_dir, img_name)
+                  image = Image.open(img_path).convert('RGB')
+                  image.load()
+                  self.imgs.append(image)
+              self.labels.append(label)
 
         if train:
             self.train_transform = transforms.Compose([
