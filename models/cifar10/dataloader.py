@@ -61,9 +61,14 @@ class ClientDataset(Dataset):
 
 
     def create_public_dataset(self, data, users, loading, train, cutout):
-       
+
+          import random
+    
+          random_users = users
+          random.shuffle(random_users)
+
           flag = 0
-          for user in users:
+          for user in random_users:
             if flag == 10:
               break
             
@@ -91,13 +96,13 @@ class ClientDataset(Dataset):
               self.test_transform = None
               if cutout is not None:
                   self.train_transform.transforms.append(cutout(n_holes=1, length=16))
-          else:
+            else:
               self.train_transform = None
               self.test_transform = transforms.Compose([
                                           transforms.ToTensor(),
                                           transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                                       ])
-
+                 
     def __len__(self):
         return len(self.labels)
 

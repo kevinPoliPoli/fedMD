@@ -71,7 +71,7 @@ def main():
     server_path = 'servers.%s' % (args.algorithm + '_server')
     client_path = 'clients.%s' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
 
-    model_paths = [cnn_model_path, resnet_model_path, resnet32_model_path, vgg_model_path]
+    model_paths = [resnet_model_path, resnet_model_path, resnet_model_path, resnet_model_path]
     
     
     server_mod = importlib.import_module(server_model_path)
@@ -197,6 +197,11 @@ def main():
             print("SWA n:", swa_n)
         print("SWA starts @ round:", swa_start)
 
+
+    for c in train_clients:
+      print("initializing client: " + c.id)
+      c.transferLearningInit()
+
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
@@ -301,6 +306,8 @@ def create_clients(users, train_data, test_data, models, args, ClientDataset, Cl
     client_params['device'] = device
     client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     client_params['public_test_dataset'] = PublicDataset(public_test_data, users_pt, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
+    
+    
     for u in users:
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
@@ -327,7 +334,7 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     
 
     train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    users_p, _, users_pt, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir)
+    users_p, _, users_pt, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir, 100)
     
     
     train_clients = create_clients(train_users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run, device)

@@ -40,9 +40,12 @@ class Client:
         self.public_test_dataset = public_test_dataset
         self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
-    def transferLearningInit(self, num_epochs=1, batch_size=10):
-      model = self.trainingMD(self.model, self.public_loader)
-      model = self.trainingMD(model, self.trainloader)
+
+    def transferLearningInit(self, num_epochs=5, batch_size=64):
+      print("Initializing on public dataset")
+      model = self.trainingMD(dataset_init = self.public_loader, num_epochs=num_epochs)
+      print("Initializing on private dataset")
+      model = self.trainingMD(dataset_init = self.trainloader, num_epochs=num_epochs)
 
       self.model = model
   
@@ -56,64 +59,94 @@ class Client:
                 # Move data to the device (CPU or GPU)
                 input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
 
+
+                print(target_data_tensor)
                 # Forward pass
                 outputs = self.model(input_data_tensor)
                 
+                print(torch.max(outputs.data, 1))
+                break
                 # Get predicted scores (you can modify this based on your specific model output)
                 #_, predicted = torch.max(outputs.data, 1)
-                
                 predictions.extend(outputs.cpu().numpy())
+                
         
         return predictions
       
     def digest(self, consensus):
+      print("Doing Digest: ")
       consensus_tensor = torch.tensor(consensus)
       self.trainingMD(consensus_tensor, Digest = True)
 
 
     def revisit(self):
+      print("Doing Revisit: ")
       self.trainingMD(Revisit = True)
 
 
-    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64):
-
+    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64, dataset_init = None):
+      print("client: " + self.id)
       criterion = nn.CrossEntropyLoss().to(self.device)
-      optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
-      
-      self.model.train()
+      optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+      losses = np.empty(num_epochs)
+
       for epoch in range(num_epochs):
         self.model.train()
         
         if Digest:
           dl = self.public_loader
-      
-        if Revisit:
-          dl = self.trainloader
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Digest=True, consensus=consensus)
+    
+        elif Revisit:
+          dl = torch.utils.data.DataLoader(self.public_dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers) if self.public_dataset.__len__() != 0 else None
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Revisit=True)
 
-        for j, data in enumerate(dl):
+        else:
+          dl = dataset_init
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion)
+      
+      self.losses = losses
+      print(self.losses)
+
+
+    def runEpochMD(self, dl, optimizer, criterion, Digest = False, Revisit = False, consensus = None):
+      running_loss = 0.0
+      i = 0
+      for j, data in enumerate(dl):
           input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
 
           optimizer.zero_grad()
           outputs = self.model(input_data_tensor)
 
           if Digest:
-            start_index = j * batch_size
-            end_index = (j + 1) * batch_size
+            start_index = j * self.batch_size
+            end_index = (j + 1) * self.batch_size
       
             consensus_batch = consensus[start_index:end_index].to(self.device)
-            loss = criterion(outputs, consensus_batch)
+            _, consensus_batch_labels = torch.max(consensus_batch, 1)
+
+            print(consensus_batch_labels)
+
+            loss = criterion(outputs, consensus_batch_labels)
             loss.backward()
+            running_loss += loss.item()
             optimizer.step()
 
-          if Revisit:
+          else:
             loss = criterion(outputs, target_data_tensor)
             loss.backward()
+            running_loss += loss.item()
             optimizer.step()  
 
-          # Printing loss
-          print(f"Epoch [{epoch + 1}/{num_epochs}], Batch [{j + 1}/{len(dl)}], Loss: {loss.item()}")
 
-           
+          i += 1
+
+      if i == 0:
+        print("Not running epoch", self.id)
+        return 0
+      return running_loss / i
+
+
     def evaluateFEDMD(self):
         self.model.eval()
         with torch.no_grad():
@@ -131,6 +164,7 @@ class Client:
                 running_corrects += torch.sum(predicted == target_data_tensor).data.item()
                 
             accuracy = running_corrects / float(len(self.public_test_loader))
+            print("Accuracy of client: " + self.id + " is :" + str(accuracy))
         return accuracy
  
 

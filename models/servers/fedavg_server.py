@@ -72,9 +72,6 @@ class Server:
                    CLIENT_TASK_KEY: {}
                    } for c in clients}
 
-
-    
-
         logits = []
         for c in clients:
             probabilities = c.communicateStep()
@@ -84,31 +81,31 @@ class Server:
             #logits += update
 
         num_clients = len(logits)
-        num_arrays = len(logits[0])  
-        num_elements = len(logits[0][0])
+        num_batches = len(logits[0])
+        num_classes = len(logits[0][0])
 
         result = []
-        for i in range(num_arrays):
-          sum_array = []
-          for j in range(num_elements):
-              sum_element = 0
-              for k in range(num_clients):
-                  sum_element += logits[k][i][j]
-              sum_array.append(sum_element)
-          result.append(sum_array)
-            
-            
-        result = [[value / num_clients for value in array] for array in result]
-        
+        for i in range(num_batches):
+            sum_array = []
+            for j in range(num_classes):
+                sum_element = 0.0
+                for k in range(num_clients):
+                    sum_element += logits[k][i][j]
+                average_element = sum_element / num_clients
+                sum_array.append(average_element)
+            result.append(sum_array)
+
+        print(result)
+
         for c in clients:
             c.digest(result)
             c.revisit()
 
 
         print("Finito FEDMD")      
+        
         return sys_metrics
-    
-
+  
     
     def evaluateClients(self, clients=None):
         if clients is None:
