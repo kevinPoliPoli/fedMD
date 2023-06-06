@@ -41,15 +41,12 @@ class Client:
         self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
 
-    def transferLearningInit(self, num_epochs=5, batch_size=64):
+    def transferLearningInit(self, num_epochs=1, batch_size=64):
       print("Initializing on public dataset")
-      model = self.trainingMD(dataset_init = self.public_loader, num_epochs=num_epochs)
+      self.trainingMD(dataset_init = self.public_loader, num_epochs=num_epochs)
       print("Initializing on private dataset")
-      model = self.trainingMD(dataset_init = self.trainloader, num_epochs=num_epochs)
-
-      self.model = model
+      self.trainingMD(dataset_init = self.trainloader, num_epochs=num_epochs)
   
-
     def communicateStep(self):
         self.model.eval()
         predictions = []
