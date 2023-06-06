@@ -10,7 +10,6 @@ import pandas as pd
 import random
 import torch
 import torch.nn as nn
-import wandb
 from datetime import datetime
 
 import metrics.writer as metrics_writer
@@ -20,9 +19,6 @@ from utils.args import parse_args, check_args
 from utils.cutout import Cutout
 from utils.main_utils import *
 from utils.model_utils import read_data
-
-os.environ["WANDB_API_KEY"] = ""
-os.environ["WANDB_MODE"] = "offline"
 
 def main():
     args = parse_args()
@@ -59,34 +55,16 @@ def main():
     private_dataset_path = 'cifar100.dataloader'
     
     server_model_path = 'cifar10.resnet'
-    
-    cnn_model_path = 'cifar100.cnn' 
-    resnet_model_path = 'cifar100.resnet'
-    resnet32_model_path = 'cifar100.resnet32'
-    vgg_model_path = 'cifar100.vgg'
-    inception_model_path = 'cifar100.inception'
-    
+  
     server_path = 'servers.%s' % (args.algorithm + '_server')
     client_path = 'clients.%s' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
 
-    model_paths = [resnet_model_path, cnn_model_path, resnet32_model_path, vgg_model_path]
-    
-    
     server_mod = importlib.import_module(server_model_path)
     ServerModel = getattr(server_mod, 'ClientModel')
     pub_dataset = importlib.import_module(public_dataset_path)
     PublicDataset = getattr(pub_dataset, 'ClientDataset')
     
-    class_models = []
-    for m in model_paths:
-        mod = importlib.import_module(m)
-        ClientModel = getattr(mod, 'ClientModel')
-        dataset = importlib.import_module(private_dataset_path)
-        ClientDataset = getattr(dataset, 'ClientDataset')
-        
-        class_models.append(ClientModel)
-
-
+  
     # Load client and server
     print("Running experiment with server", server_path, "and client", client_path)
     Client, Server = get_client_and_server(server_path, client_path)
@@ -98,16 +76,20 @@ def main():
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
     
-  
-    
-    #create client models
-    c_models = []
-    for i in range(len(class_models)):
-        model_params = MODEL_PARAMS[model_paths[i]]
-        client_model = class_models[i](*model_params, device)
-        client_model = client_model.to(device)
-        c_models.append(client_model)
 
+    #create client models
+    dataset = importlib.import_module(private_dataset_path)
+    ClientDataset = getattr(dataset, 'ClientDataset')
+
+    from architecturesMD.resnets import _resnet
+    resnet32 = _resnet([5]*3, pretrained=True, type=32).to(device)
+    resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
+    resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
+
+    #add resnet44/56
+    c_models = [resnet32, resnet44, resnet56]
+    
+    
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
@@ -163,6 +145,7 @@ def online(clients):
 
 
 def create_clients(users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run=None, device=None):
+
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
@@ -201,7 +184,7 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     
     
 
-    train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
+    train_users, _, test_users, _, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
     users_p, _, users_pt, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir, 100)
     
     

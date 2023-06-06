@@ -10,6 +10,7 @@ import warnings
 from baseline_constants import ACCURACY_KEY
 from datetime import datetime
 import importlib
+import os
 
 class Client:
 
@@ -41,10 +42,8 @@ class Client:
         self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
 
-    def transferLearningInit(self, num_epochs=25, batch_size=64):
-      print("Initializing on public dataset")
-      self.trainingMD(dataset_init = self.public_loader, num_epochs=num_epochs)
-      print("Initializing on private dataset")
+    def transferLearningInit(self, num_epochs=25, batch_size=64):    
+      print("Initializing on private dataset client " + self.id)
       self.trainingMD(dataset_init = self.trainloader, num_epochs=num_epochs)
   
     def communicateStep(self):
@@ -53,31 +52,28 @@ class Client:
         with torch.no_grad():
             for j, data in enumerate(self.public_loader):
                 
-                # Move data to the device (CPU or GPU)
                 input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
+
                 # Forward pass
                 outputs = self.model(input_data_tensor)
         
-                # Get predicted scores (you can modify this based on your specific model output)
                 #_, predicted = torch.max(outputs.data, 1)
                 predictions.extend(outputs.cpu().numpy())
-                
-        
+              
         return predictions
       
     def digest(self, consensus):
-      print("Doing Digest: ")
+      print("client doing digest: " + self.id)
       consensus_tensor = torch.tensor(consensus)
       self.trainingMD(consensus_tensor, Digest = True)
 
 
     def revisit(self):
-      print("Doing Revisit: ")
+      print("client doing revisit: " + self.id)
       self.trainingMD(Revisit = True)
 
 
     def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64, dataset_init = None):
-      print("client: " + self.id)
       criterion = nn.CrossEntropyLoss().to(self.device)
       optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
       losses = np.empty(num_epochs)
@@ -116,8 +112,6 @@ class Client:
       
             consensus_batch = consensus[start_index:end_index].to(self.device)
             _, consensus_batch_labels = torch.max(consensus_batch, 1)
-
-            print(consensus_batch_labels)
 
             loss = criterion(outputs, consensus_batch_labels)
             loss.backward()

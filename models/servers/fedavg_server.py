@@ -74,6 +74,7 @@ class Server:
 
         logits = []
         for c in clients:
+            print("Client: " + c.id + " is communicating")
             probabilities = c.communicateStep()
             #sys_metrics = self._update_sys_metrics(c, sys_metrics)
             #self.updates.append((num_samples, copy.deepcopy(update)))
@@ -94,8 +95,6 @@ class Server:
                 average_element = sum_element / num_clients
                 sum_array.append(average_element)
             result.append(sum_array)
-
-        print(result)
 
         for c in clients:
             c.digest(result)
