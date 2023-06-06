@@ -3,8 +3,11 @@ import torch.nn as nn
 
 
 def _weights_init(m):
-    if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
-        nn.init.kaiming_normal_(m.weight)
+    if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+    elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
 
 class ClientModel(nn.Module):
     def __init__(self, lr, num_classes, device):
@@ -14,197 +17,163 @@ class ClientModel(nn.Module):
         self.image_channels = 3
         self.in_channels = 16
 
-        self.conv1 = nn.Conv2d(self.image_channels, 16, kernel_size=3, stride=1, padding=1, bias=False)
-        #self.bn1 = nn.BatchNorm2d(16)
-        self.gn1 = nn.GroupNorm(2, 16)
+        self.conv1 = nn.Conv2d(self.image_channels, 16, kernel_size=3)
+        self.bn1 = nn.BatchNorm2d(16)
         self.relu = nn.ReLU()
-        #self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
 
         self.layer1 = nn.Sequential(
             #first block
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             
             #second block
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
 
             #third block
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             
             #fourth block
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             
             #fifth block
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.Conv2d(16, 16, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(16),
-            nn.GroupNorm(2, 16),
+            nn.BatchNorm2d(16),
             nn.ReLU(),
             
         )
         
         self.layer2_1 = nn.Sequential(
             nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
         )    
         
 
         self.layer2_2 = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
         )
 
         self.layer2_3 = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
         )
         
         self.layer2_4 = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
         )
         
         self.layer2_5 = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.Conv2d(32, 32, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(32),
-            nn.GroupNorm(2, 32),
+            nn.Conv2d(32, 32, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(32),
             nn.ReLU(),
 
         )
 
         self.identity_2 = nn.Sequential(
                 nn.Conv2d(16,32,kernel_size=1,stride=2,bias=False),
-                #nn.BatchNorm2d(32),
-                nn.GroupNorm(2, 32),
+                nn.BatchNorm2d(32),
             )
             
 
         self.layer3 = nn.Sequential(
             nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
         
         )  
 
         self.layer3_2 = nn.Sequential(
             
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
              
         )
 
         self.layer3_3 = nn.Sequential(
             
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
              
         )
         
         self.layer3_4 = nn.Sequential(
             
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
              
         )
         
         self.layer3_5 = nn.Sequential(
             
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=False),
-            #nn.BatchNorm2d(64),
-            nn.GroupNorm(2, 64),
+            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1, bias=False),
+            nn.BatchNorm2d(64),
             nn.ReLU(),
              
         )
 
         self.identity_3 = nn.Sequential(
                 nn.Conv2d(32,64,kernel_size=1,stride=2,bias=False),
-                #nn.BatchNorm2d(64),
-                nn.GroupNorm(2, 64),
+                nn.BatchNorm2d(64),
             )
 
 
@@ -219,8 +188,7 @@ class ClientModel(nn.Module):
     def forward(self, x):
         #base
         x = self.conv1(x)
-        #x = self.bn1(x)
-        x = self.gn1(x)
+        x = self.bn1(x)
         x = self.relu(x)
         #x = self.maxpool(x)
         

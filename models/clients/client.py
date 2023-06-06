@@ -41,7 +41,7 @@ class Client:
         self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
 
-    def transferLearningInit(self, num_epochs=1, batch_size=64):
+    def transferLearningInit(self, num_epochs=25, batch_size=64):
       print("Initializing on public dataset")
       self.trainingMD(dataset_init = self.public_loader, num_epochs=num_epochs)
       print("Initializing on private dataset")
@@ -55,14 +55,9 @@ class Client:
                 
                 # Move data to the device (CPU or GPU)
                 input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-
-
-                print(target_data_tensor)
                 # Forward pass
                 outputs = self.model(input_data_tensor)
-                
-                print(torch.max(outputs.data, 1))
-                break
+        
                 # Get predicted scores (you can modify this based on your specific model output)
                 #_, predicted = torch.max(outputs.data, 1)
                 predictions.extend(outputs.cpu().numpy())
