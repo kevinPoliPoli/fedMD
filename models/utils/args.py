@@ -104,23 +104,6 @@ def parse_args():
                         help='apply cutout',
                         action='store_true',
                         default=False)
-    parser.add_argument('--batch-size-digest',
-                    help='batch size for digest',
-                    type=int,
-                    default=256)
-    parser.add_argument('--batch-size-revisit',
-                    help='batch size for revisit',
-                    type=int,
-                    default=5)
-    parser.add_argument('--num-epochs-digest',
-                        help='number of epochs digest',
-                        type=int,
-                        default=1)
-    parser.add_argument('--num-epochs-revisit',
-                        help='number of epochs revisit',
-                        type=int,
-                        default=4)
-    
 
     ## GPU ##
     parser.add_argument('-device',
