@@ -146,20 +146,23 @@ def online(clients):
 
 def create_clients(users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run=None, device=None):
 
+    import random
+    import copy
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
-    import random
-    model = random.choice(models)
 
-    client_params['model'] = model
     client_params['run'] = run
     client_params['device'] = device
     client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     client_params['public_test_dataset'] = PublicDataset(public_test_data, users_pt, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     
     
-    for u in users:
+    participants = users[0:10]
+    for u in participants:
+        model = random.choice(models)
+        client_params['model'] = copy.deepcopy(model)
+
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
         client_params['client_id'] = u
