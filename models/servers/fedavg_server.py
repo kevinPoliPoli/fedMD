@@ -43,43 +43,16 @@ class Server:
         self.selected_clients = np.random.choice(possible_clients, num_clients, replace=False)
         return [(c.num_train_samples, c.num_test_samples) for c in self.selected_clients]
 
-    def train_model(self, num_epochs=1, batch_size=10, minibatch=None, clients=None, analysis=False):
-        """Trains self.model on given clients.
-
-        Trains model on self.selected_clients if clients=None;
-        each client's data is trained with the given number of epochs
-        and batches.
-
-        Args:
-            clients: list of Client objects.
-            num_epochs: Number of epochs to train.
-            batch_size: Size of training batches.
-            minibatch: fraction of client's data to apply minibatch sgd,
-                None to use FedAvg
-        Return:
-            bytes_written: number of bytes written by each client to servers
-                dictionary with client ids as keys and integer values.
-            bytes_read: number of bytes read by each client from servers
-                dictionary with client ids as keys and integer values.
-        """
+    def train_model(self, clients=None, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5):
         if clients is None:
             clients = self.selected_clients
-        sys_metrics = {
-            c.id: {BYTES_WRITTEN_KEY: 0,
-                   BYTES_READ_KEY: 0,
-                   CLIENT_PARAMS_KEY: 0,
-                   CLIENT_GRAD_KEY: 0,
-                   CLIENT_TASK_KEY: {}
-                   } for c in clients}
-
+    
         logits = []
         for c in clients:
-            print("Client: " + c.id + " is communicating")
-            probabilities = c.communicateStep()
-            #sys_metrics = self._update_sys_metrics(c, sys_metrics)
-            #self.updates.append((num_samples, copy.deepcopy(update)))
+            #print("Client: " + c.id + " is communicating")
+            probabilities = c.communicate(batch_size_digest)
             logits.append(probabilities)
-            #logits += update
+          
 
         num_clients = len(logits)
         num_batches = len(logits[0])
@@ -97,13 +70,9 @@ class Server:
             result.append(sum_array)
 
         for c in clients:
-            c.digest(result)
-            c.revisit()
-
-
-        print("Finito FEDMD")      
-        
-        return sys_metrics
+            c.digest(result, batch_size_digest, num_epochs_digest)
+            c.revisit(batch_size_revisit, num_epochs_revisit)
+        return
   
     
     def evaluateClients(self, clients=None):
@@ -112,11 +81,10 @@ class Server:
         
         avg_accuracy = 0
         for c in clients:
-            accuracy = c.evaluateFEDMD()
+            accuracy, loss = c.evaluateFEDMD()
+            print(f"Accuracy for client {c.id} is {accuracy} and loss is {loss}")
             avg_accuracy += accuracy
-            print(f"Accuracy for client {c} is {accuracy}")
             
-        
         avg_accuracy = avg_accuracy / len(clients)
         print(f"Average Accuracy is {avg_accuracy}")
         

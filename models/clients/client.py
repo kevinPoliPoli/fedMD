@@ -35,22 +35,25 @@ class Client:
         self.mixup = mixup
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
 
-        self.public_dataset = public_dataset
-        self.public_loader =  torch.utils.data.DataLoader(public_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers) if self.public_dataset.__len__() != 0 else None
-  
+        self.public_dataset = public_dataset  
         self.public_test_dataset = public_test_dataset
         self.public_test_loader = torch.utils.data.DataLoader(public_test_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.public_test_dataset.__len__() != 0 else None
     
 
-    def transferLearningInit(self, num_epochs=25, batch_size=64):    
-      print("Initializing on private dataset client " + self.id)
-      self.trainingMD(dataset_init = self.trainloader, num_epochs=num_epochs)
+    def transferLearningInit(self, num_epochs=25, batch_size=32):    
+      dlTL = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers) if self.train_data.__len__() != 0 else None
+      self.trainingMD(num_epochs=num_epochs, batch_size = batch_size, dl = dlTL)
+
+
+    def communicate(self, batch_size = 256):
+        dlCommunicate = torch.utils.data.DataLoader(self.public_dataset, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if self.public_dataset.__len__() != 0 else None
+        self.communicateStep(dlCommunicate)
   
-    def communicateStep(self):
+    def communicateStep(self, dl = None):
         self.model.eval()
         predictions = []
         with torch.no_grad():
-            for j, data in enumerate(self.public_loader):
+            for j, data in enumerate(dl):
                 
                 input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
 
@@ -62,18 +65,18 @@ class Client:
               
         return predictions
       
-    def digest(self, consensus):
-      print("client doing digest: " + self.id)
+    def digest(self, consensus, batch_size = 256, num_epochs = 1):
       consensus_tensor = torch.tensor(consensus)
-      self.trainingMD(consensus_tensor, Digest = True)
+      dlDigest = torch.utils.data.DataLoader(self.public_dataset, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if self.public_dataset.__len__() != 0 else None
+      self.trainingMD(consensus_tensor, Digest = True, num_epochs = num_epochs, batch_size = batch_size,  dl = dlDigest)
 
 
-    def revisit(self):
-      print("client doing revisit: " + self.id)
-      self.trainingMD(Revisit = True)
+    def revisit(self, batch_size = 5, num_epochs = 4):
+      dlRevisit = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers) if self.train_data.__len__() != 0 else None
+      self.trainingMD(Revisit = True, num_epochs = num_epochs, batch_size = batch_size,  dl = dlRevisit)
 
 
-    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64, dataset_init = None):
+    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64, dl = None):
       criterion = nn.CrossEntropyLoss().to(self.device)
       optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
       losses = np.empty(num_epochs)
@@ -82,22 +85,17 @@ class Client:
         self.model.train()
         
         if Digest:
-          dl = self.public_loader
-          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Digest=True, consensus=consensus)
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Digest=True, consensus=consensus, batch_size = batch_size)
     
         elif Revisit:
-          dl = torch.utils.data.DataLoader(self.public_dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers) if self.public_dataset.__len__() != 0 else None
-          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Revisit=True)
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, Revisit=True, batch_size = batch_size)
 
         else:
-          dl = dataset_init
-          losses[epoch] = self.runEpochMD(dl, optimizer, criterion)
+          losses[epoch] = self.runEpochMD(dl, optimizer, criterion, batch_size = batch_size)
       
       self.losses = losses
-      print(self.losses)
 
-
-    def runEpochMD(self, dl, optimizer, criterion, Digest = False, Revisit = False, consensus = None):
+    def runEpochMD(self, dl, optimizer, criterion, Digest = False, Revisit = False, consensus = None, batch_size = 64):
       running_loss = 0.0
       i = 0
       for j, data in enumerate(dl):
@@ -107,8 +105,8 @@ class Client:
           outputs = self.model(input_data_tensor)
 
           if Digest:
-            start_index = j * self.batch_size
-            end_index = (j + 1) * self.batch_size
+            start_index = j * batch_size
+            end_index = (j + 1) * batch_size
       
             consensus_batch = consensus[start_index:end_index].to(self.device)
             _, consensus_batch_labels = torch.max(consensus_batch, 1)
@@ -123,10 +121,7 @@ class Client:
             loss.backward()
             running_loss += loss.item()
             optimizer.step()  
-
-
           i += 1
-
       if i == 0:
         print("Not running epoch", self.id)
         return 0
@@ -135,133 +130,15 @@ class Client:
 
     def evaluateFEDMD(self):
         self.model.eval()
-        with torch.no_grad():
-            running_corrects = 0
-            for j, data in enumerate(self.public_test_loader):
-                
-                # Move data to the device (CPU or GPU)
-                input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-
-                # Forward pass
-                outputs = self.model(input_data_tensor)
-                
-                # Get predicted scores (you can modify this based on your specific model output)
-                _, predicted = torch.max(outputs.data, 1)
-                running_corrects += torch.sum(predicted == target_data_tensor).data.item()
-                
-            accuracy = running_corrects / float(len(self.public_test_loader))
-            print("Accuracy of client: " + self.id + " is :" + str(accuracy))
-        return accuracy
- 
-
-    def train(self, num_epochs=1, batch_size=10, minibatch=None):
-        """Trains on self.model using the client's train_data.
-
-        Args:
-            num_epochs: Number of epochs to train. Unsupported if minibatch is provided (minibatch has only 1 epoch)
-            batch_size: Size of training batches.
-            minibatch: fraction of client's data to apply minibatch sgd,
-                None to use FedAvg
-        Return:
-            num_samples: number of samples used in training
-            update: state dictionary of the trained model
-        """
-        # Train model
-        criterion = nn.CrossEntropyLoss().to(self.device)
-        optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
-        losses = np.empty(num_epochs)
-
-        for epoch in range(num_epochs):
-            self.model.train()
-            if self.mixup:
-                losses[epoch] = self.run_epoch_with_mixup(optimizer, criterion)
-            else:
-                losses[epoch] = self.run_epoch(optimizer, criterion)
-
-        self.losses = losses
-        update = self.model.state_dict()
-        return self.num_train_samples, update
-
-    def run_epoch(self, optimizer, criterion):
-        """Runs single training epoch of self.model on client's data.
-
-        Return:
-            epoch loss
-        """
-        running_loss = 0.0
-        i = 0
-        for j, data in enumerate(self.trainloader):
-            input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-            optimizer.zero_grad()
-            outputs = self.model(input_data_tensor)
-            loss = criterion(outputs, target_data_tensor)
-            loss.backward()  # gradient inside the optimizer (memory usage increases here)
-            running_loss += loss.item()
-            optimizer.step()  # update of weights
-            i += 1
-        if i == 0:
-            print("Not running epoch", self.id)
-            return 0
-        return running_loss / i
-
-    def run_epoch_with_mixup(self, optimizer, criterion):
-        running_loss = 0.0
-        i = 0
-        for j, data in enumerate(self.trainloader):
-            inputs, targets = data[0].to(self.device), data[1].to(self.device)
-            inputs, targets_a, targets_b, lam = self.mixup_data(inputs, targets)
-            optimizer.zero_grad()
-            outputs = self.model(inputs)
-            loss = self.mixup_criterion(criterion, outputs, targets_a, targets_b, lam)
-            loss.backward()  # gradient inside the optimizer (memory usage increases here)
-            running_loss += loss.item()
-            optimizer.step()  # update of weights
-            i += 1
-        if i == 0:
-            print("Not running epoch", self.id)
-            return 0
-        return running_loss / i
-
-    def mixup_data(self, x, y):
-        '''Returns mixed inputs, pairs of targets, and lambda'''
-        if self.mixup_alpha > 0:
-            lam = np.random.beta(self.mixup_alpha, self.mixup_alpha)
-        else:
-            lam = 1
-
-        batch_size = x.size()[0]
-        index = torch.randperm(batch_size).to(self.device)
-        mixed_x = lam * x + (1 - lam) * x[index, :]
-        y_a, y_b = y, y[index]
-        return mixed_x, y_a, y_b, lam
-
-    def mixup_criterion(self, criterion, pred, y_a, y_b, lam):
-        return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
-
-    def test(self, batch_size, set_to_use='test'):
-        """Tests self.model on self.test_data.
-
-        Args:
-            set_to_use. Set to test on. Should be in ['train', 'test'].
-        Return:
-            dict of metrics returned by the model.
-        """
-        assert set_to_use in ['train', 'test', 'val']
-        if set_to_use == 'train':
-            dataloader = self.trainloader
-        elif set_to_use == 'test' or set_to_use == 'val':
-            dataloader = self.testloader
-
-        self.model.eval()
         correct = 0
         total = 0
         test_loss = 0
-        for data in dataloader:
+        for data in self.public_test_loader:
             input_tensor, labels_tensor = data[0].to(self.device), data[1].to(self.device)
             with torch.no_grad():
                 outputs = self.model(input_tensor)
                 test_loss += F.cross_entropy(outputs, labels_tensor, reduction='sum').item()
-                _, predicted = torch.max(outputs.data, 1)  # same as torch.argmax()
+                _, predicted = torch.max(outputs.data, 1)  
                 total += labels_tensor.size(0)
                 correct += (predicted == labels_tensor).sum().item()
         if total == 0:
@@ -270,7 +147,7 @@ class Client:
         else:
             accuracy = 100 * correct / total
             test_loss /= total
-        return {ACCURACY_KEY: accuracy, 'loss': test_loss}
+        return accuracy, test_loss
 
     @property
     def num_test_samples(self):

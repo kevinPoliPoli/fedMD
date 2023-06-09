@@ -86,10 +86,9 @@ def main():
     resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
     resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
 
-    #add resnet44/56
     c_models = [resnet32, resnet44, resnet56]
     
-    
+  
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
@@ -112,8 +111,6 @@ def main():
 
     server.set_num_clients(len(train_clients))
 
-
-
     for c in train_clients:
       print("initializing client: " + c.id)
       c.transferLearningInit()
@@ -129,15 +126,14 @@ def main():
         print("Selected clients:", c_ids)
 
     
-        _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size,
-                                         minibatch=args.minibatch)
+        _ = server.train_model(num_epochs_digest=args.num_epochs_digest, num_epochs_revisit=args.num_epochs_revisit, 
+                               batch_size_digest=args.batch_size_digest, batch_size_revisit=args.batch_size_revisit)
 
+
+        print("Evaluating clients")
         server.evaluateClients()
        
 
-        ##### Update server model (FedAvg) #####
-        print("--- Updating central model ---")
-        server.update_model()
 
 def online(clients):
     """We assume all users are always online."""
@@ -146,20 +142,21 @@ def online(clients):
 
 def create_clients(users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run=None, device=None):
 
+    import random
+    import copy
+
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
-    import random
-    model = random.choice(models)
-
-    client_params['model'] = model
     client_params['run'] = run
     client_params['device'] = device
     client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     client_params['public_test_dataset'] = PublicDataset(public_test_data, users_pt, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
     
-    
     for u in users:
+        model = random.choice(models)
+        client_params['model'] = copy.deepcopy(model)
+
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
         c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
         client_params['client_id'] = u
