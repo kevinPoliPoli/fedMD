@@ -33,7 +33,7 @@ class ClientDataset(Dataset):
 
         else:
           for img_name, label in zip(data['x'], data['y']):
-              if label < 10:
+              if label in [10,12,20,63,71,82]:
                 if loading == 'training_time':
                     self.imgs.append(img_name)
                 else: # loading == 'init'
@@ -66,7 +66,7 @@ class ClientDataset(Dataset):
             ud = data[user]
 
             for img_name, label in zip(ud['x'], ud['y']):
-              if label < 10:
+              if label in [10,12,20,63,71,82]:
                 if loading == 'training_time':
                   self.imgs.append(img_name)
                 else: # loading == 'init'

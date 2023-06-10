@@ -36,9 +36,9 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=300, batch_size=32):    
+    def transferLearningInit(self, num_epochs=150, batch_size=32):    
       print("Initializing on private dataset client " + self.id)
-      self.trainingMD(dataset = self.trainloader, num_epochs=num_epochs)
+      self.trainingMD(dataset = self.trainloader, num_epochs=num_epochs, Init = True)
   
     def communicateStep(self, public_dataset):
         dl = torch.utils.data.DataLoader(public_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
@@ -73,11 +73,12 @@ class Client:
       if Init:
         parameters_to_optimize = [
         {'params': self.model.fc.parameters()},  
-        {'params': self.model.layer3.parameters()},  
+        {'params': self.model.layer3.parameters()}, 
         ]
 
         optimizer = optim.Adam(parameters_to_optimize, lr=0.001, weight_decay=self.weight_decay)
-      optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+      else:
+        optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
       losses = np.empty(num_epochs)
 
       for epoch in range(num_epochs):

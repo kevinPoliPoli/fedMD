@@ -86,8 +86,18 @@ def main():
     resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
     resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
 
-    #add resnet44/56
+    #add other nets
     c_models = [resnet32, resnet44, resnet56]
+
+
+    #compute upperbound
+    print("Diocane")
+    test_loader = load_full_test([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+
+    for model in c_models:
+      calculate_upperbound(model, test_loader, device)
+        
+
     
     
     server_p = MODEL_PARAMS[server_model_path]
@@ -144,10 +154,64 @@ def main():
         print("--- Updating central model ---")
         server.update_model()
 
-def online(clients):
-    """We assume all users are always online."""
-    return clients
 
+
+def load_full_test(target_labels):
+    batch_size = 64
+
+    import torch
+    import torchvision
+    import torchvision.transforms as transforms
+
+    transform = transforms.Compose([
+                                          transforms.RandomCrop(32, padding=4),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                      ])
+
+    test_dataset = torchvision.datasets.CIFAR100(root='./data_test', train=True, download=True, transform=transform)
+
+    # Filter the dataset based on target_labels
+    filtered_indices = [idx for idx, label in enumerate(test_dataset.targets) if label in target_labels]
+    filtered_dataset = torch.utils.data.Subset(test_dataset, filtered_indices)
+
+    test_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=False)
+
+    return test_loader
+
+def calculate_upperbound(model, test_loader, device):
+  import torch.optim as optim
+
+  criterion = nn.CrossEntropyLoss()
+  optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)
+
+  model.train()
+  correct = 0
+  total = 0
+
+  for epoch in range(75):
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+
+        optimizer.zero_grad()
+
+        outputs = model(images)
+
+        loss = criterion(outputs, labels)
+
+        loss.backward()
+        optimizer.step()
+
+        _, predicted = torch.max(outputs.data, 1)
+
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+    accuracy = 100 * correct / total
+
+    print(f"Accuracy at epoch {epoch+1}: {accuracy:.2f}%")
 
 def create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run=None, device=None):
 
@@ -174,7 +238,7 @@ def create_clients(train_users, test_users, train_data, test_data, models, args,
     return clients
 
 
-def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
+def setup_clients(args, models, Client, ClientDataset, run=None, device=None):
     """Instantiates clients based on given train and test data directories.
 
     Return:
