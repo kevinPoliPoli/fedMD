@@ -101,26 +101,32 @@ def main():
 
     start_round = 0
     print("Start round:", start_round)
-
-    train_clients, test_clients = setup_clients(args, c_models, Client, ClientDataset, PublicDataset, None, device)
+  
+    train_clients = setup_clients(args, c_models, Client, ClientDataset, None, device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
-    test_client_ids, test_client_num_samples = server.get_clients_info(test_clients)
-    if set(train_client_ids) == set(test_client_ids):
-        print('Clients in Total: %d' % len(train_clients))
-    else:
-        print(f'Clients in Total: {len(train_clients)} training clients and {len(test_clients)} test clients')
-
+    print('Clients in Total: %d' % len(train_clients))
+    
     server.set_num_clients(len(train_clients))
 
-
-
+    print("prima")
+    server.evaluateClients(train_clients)
     for c in train_clients:
       print("initializing client: " + c.id)
       c.transferLearningInit()
 
+    print("dopo")
+
+    server.evaluateClients(train_clients)
+
+    public_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'train')
+    public_test_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'test')
+
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
+
+        users_p, _, _, _, public_data, _ = read_data(public_data_dir, public_test_data_dir, 100)
+        public_dataset_round = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
 
 
         # Select clients to train during this round
@@ -129,8 +135,7 @@ def main():
         print("Selected clients:", c_ids)
 
     
-        _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size,
-                                         minibatch=args.minibatch)
+        _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size, public_dataset = public_dataset_round)
 
         server.evaluateClients()
        
@@ -144,7 +149,7 @@ def online(clients):
     return clients
 
 
-def create_clients(users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run=None, device=None):
+def create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run=None, device=None):
 
     import random
     import copy
@@ -154,25 +159,22 @@ def create_clients(users, train_data, test_data, models, args, ClientDataset, Cl
 
     client_params['run'] = run
     client_params['device'] = device
-    client_params['public_dataset'] = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
-    client_params['public_test_dataset'] = PublicDataset(public_test_data, users_pt, public_dataset = True, train=False, loading=args.where_loading, cutout=Cutout if args.cutout else None)
+    c_testdata = ClientDataset(test_data, users = test_users, aggregated_test = True, train=False, loading=args.where_loading, cutout=None)
+    client_params['eval_data'] = c_testdata
     
-    
-    participants = users[0:10]
+    participants = train_users[0:10]
     for u in participants:
         model = random.choice(models)
         client_params['model'] = copy.deepcopy(model)
-
         c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
-        c_testdata = ClientDataset(test_data[u], train=False, loading=args.where_loading, cutout=None)
         client_params['client_id'] = u
         client_params['train_data'] = c_traindata
-        client_params['eval_data'] = c_testdata
+        
         clients.append(Client(**client_params))
     return clients
 
 
-def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, device=None,):
+def setup_clients(args, models, Client, ClientDataset, run=None, device=None,):
     """Instantiates clients based on given train and test data directories.
 
     Return:
@@ -182,19 +184,10 @@ def setup_clients(args, models, Client, ClientDataset, PublicDataset, run=None, 
     train_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'train')
     test_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'test')
     
-    public_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'train')
-    public_test_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'test')
-    
-    
+    train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
+    train_clients = create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run, device)
 
-    train_users, _, test_users, _, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    users_p, _, users_pt, _, public_data, public_test_data = read_data(public_data_dir, public_test_data_dir, 100)
-    
-    
-    train_clients = create_clients(train_users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run, device)
-    test_clients = create_clients(test_users, train_data, test_data, models, args, ClientDataset, Client, public_data, public_test_data, PublicDataset, users_p, users_pt, run, device)
-
-    return train_clients, test_clients
+    return train_clients
 
 def get_client_and_server(server_path, client_path):
     mod = importlib.import_module(server_path)

@@ -14,7 +14,7 @@ IMAGES_DIR = os.path.join('..', 'data', 'cifar100', 'data', 'raw', 'img')
 class ClientDataset(Dataset):
     """ CIFAR100 Dataset """
 
-    def __init__(self, data, train=True, loading='training_time', cutout=False):
+    def __init__(self, data, users = None, aggregated_test = False, train=True, loading='training_time', cutout=False):
         """
         Args:
             data: dictionary in the form {'x': list of imgs ids, 'y': list of correspondings labels}
@@ -27,34 +27,73 @@ class ClientDataset(Dataset):
 
         if data is None:
             return
+        
+        if aggregated_test:
+          self.create_aggregated_testdata(data, users, loading, train, cutout)
 
-        for img_name, label in zip(data['x'], data['y']):
-            if label < 10:
-              if loading == 'training_time':
+        else:
+          for img_name, label in zip(data['x'], data['y']):
+              if label < 10:
+                if loading == 'training_time':
+                    self.imgs.append(img_name)
+                else: # loading == 'init'
+                    img_path = os.path.join(self.root_dir, img_name)
+                    image = Image.open(img_path).convert('RGB')
+                    image.load()
+                    self.imgs.append(image)
+                self.labels.append(label)
+
+          if train:
+              self.train_transform = transforms.Compose([
+                                          transforms.RandomCrop(IMAGE_SIZE, padding=4),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                      ])
+              self.test_transform = None
+              if cutout is not None:
+                  self.train_transform.transforms.append(cutout(n_holes=1, length=16))
+          else:
+              self.train_transform = None
+              self.test_transform = transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                      ])
+
+
+    def create_aggregated_testdata(self, data, users, loading, train, cutout):
+          for user in users:
+            ud = data[user]
+
+            for img_name, label in zip(ud['x'], ud['y']):
+              if label < 10:
+                if loading == 'training_time':
                   self.imgs.append(img_name)
-              else: # loading == 'init'
+                else: # loading == 'init'
                   img_path = os.path.join(self.root_dir, img_name)
                   image = Image.open(img_path).convert('RGB')
                   image.load()
                   self.imgs.append(image)
-              self.labels.append(label)
+                self.labels.append(label)
 
-        if train:
-            self.train_transform = transforms.Compose([
-                                        transforms.RandomCrop(IMAGE_SIZE, padding=4),
-                                        transforms.RandomHorizontalFlip(),
-                                        transforms.ToTensor(),
-                                        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                    ])
-            self.test_transform = None
-            if cutout is not None:
-                self.train_transform.transforms.append(cutout(n_holes=1, length=16))
-        else:
-            self.train_transform = None
-            self.test_transform = transforms.Compose([
-                                        transforms.ToTensor(),
-                                        transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                    ])
+
+            if train:
+              self.train_transform = transforms.Compose([
+                                          transforms.RandomCrop(IMAGE_SIZE, padding=4),
+                                          transforms.RandomHorizontalFlip(),
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                      ])
+              self.test_transform = None
+              if cutout is not None:
+                  self.train_transform.transforms.append(cutout(n_holes=1, length=16))
+            else:
+              self.train_transform = None
+              self.test_transform = transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                      ])
+
 
     def __len__(self):
         return len(self.labels)

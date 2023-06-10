@@ -43,7 +43,7 @@ class Server:
         self.selected_clients = np.random.choice(possible_clients, num_clients, replace=False)
         return [(c.num_train_samples, c.num_test_samples) for c in self.selected_clients]
 
-    def train_model(self, num_epochs=1, batch_size=10, minibatch=None, clients=None, analysis=False):
+    def train_model(self, num_epochs=1, batch_size=10, public_dataset = None, clients = None):
         """Trains self.model on given clients.
 
         Trains model on self.selected_clients if clients=None;
@@ -74,12 +74,8 @@ class Server:
 
         logits = []
         for c in clients:
-            print("Client: " + c.id + " is communicating")
-            probabilities = c.communicateStep()
-            #sys_metrics = self._update_sys_metrics(c, sys_metrics)
-            #self.updates.append((num_samples, copy.deepcopy(update)))
+            probabilities = c.communicateStep(public_dataset)
             logits.append(probabilities)
-            #logits += update
 
         num_clients = len(logits)
         num_batches = len(logits[0])
@@ -97,11 +93,8 @@ class Server:
             result.append(sum_array)
 
         for c in clients:
-            c.digest(result)
+            c.digest(result, public_dataset)
             c.revisit()
-
-
-        print("Finito FEDMD")      
         
         return sys_metrics
   
@@ -112,9 +105,9 @@ class Server:
         
         avg_accuracy = 0
         for c in clients:
-            accuracy = c.evaluateFEDMD()
+            accuracy, loss = c.evaluateFEDMD()
             avg_accuracy += accuracy
-            print(f"Accuracy for client {c} is {accuracy}")
+            print(f"Accuracy for client {c.id} is {accuracy}")
             
         
         avg_accuracy = avg_accuracy / len(clients)

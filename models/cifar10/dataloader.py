@@ -69,7 +69,7 @@ class ClientDataset(Dataset):
 
           flag = 0
           for user in random_users:
-            if flag == 10:
+            if flag == 9:
               break
             
             ud = data[user]
@@ -102,6 +102,8 @@ class ClientDataset(Dataset):
                                           transforms.ToTensor(),
                                           transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
                                       ])
+
+          
                  
     def __len__(self):
         return len(self.labels)
