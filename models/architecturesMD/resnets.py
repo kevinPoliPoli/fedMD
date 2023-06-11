@@ -52,7 +52,7 @@ class BasicBlock(nn.Module):
 
 class CifarResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=10):
+    def __init__(self, block, layers, num_classes=16):
         super(CifarResNet, self).__init__()
         self.inplanes = 16
         self.conv1 = conv3x3(3, 16)
@@ -125,6 +125,8 @@ def _resnet(
         file_path = os.path.join(current_dir, 'cifar10_resnet56.pth')
 
       print("Loading state dict of resnet" + str(type))
-      model.load_state_dict(torch.load(file_path))
+      state_dict = torch.load(file_path)
+      state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
+      model.load_state_dict(state_dict_without_fc, strict=False)
 
     return model

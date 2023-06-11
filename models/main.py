@@ -89,6 +89,12 @@ def main():
     model_params = MODEL_PARAMS[resnet_model_path]
     client_model = ClientModel(*model_params, device)
     custom_resnet20 = client_model.to(device)
+    model_weights_path = './architecturesMD/cifar10_custom_resnet20.pth'
+    
+    print("Loading state dict of resnet20")
+    state_dict = torch.load(model_weights_path)
+    state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
+    custom_resnet20.load_state_dict(state_dict_without_fc, strict=False)
     
     resnet32 = _resnet([5]*3, pretrained=True, type=32).to(device)
     resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
