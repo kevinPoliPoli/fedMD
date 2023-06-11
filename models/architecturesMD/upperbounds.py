@@ -57,7 +57,7 @@ def load_dataloader(target_labels):
 def compute_upperbound(model, model_name, test_loader, device):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)
-    early_stopping = EarlyStopping(patience=5, delta=0, path=f'best_{model_name}.pth')
+    early_stopping = EarlyStopping(patience=10, delta=0.001, path=f'best_{model_name}.pth')
     
     model.train()
     correct = 0
@@ -84,6 +84,8 @@ def compute_upperbound(model, model_name, test_loader, device):
         # Validation step
         model.eval()
         val_loss = 0.0
+        val_total = 0
+        val_correct = 0
         with torch.no_grad():
             for val_images, val_labels in test_loader:
                 val_images = val_images.to(device)
@@ -91,9 +93,13 @@ def compute_upperbound(model, model_name, test_loader, device):
 
                 val_outputs = model(val_images)
                 val_loss += criterion(val_outputs, val_labels).item()
+                _, val_predicted = torch.max(val_outputs.data, 1)
+                val_total += val_labels.size(0)
+                val_correct += (val_predicted == val_labels).sum().item()
 
         val_loss /= len(test_loader)
-        print(f"Validation loss at epoch {epoch+1}: {val_loss:.4f}")
+        val_accuracy = 100 * val_correct / val_total
+        print(f"Validation accuracy at epoch {epoch+1}: {val_accuracy:.2f}%")
 
         # Check for early stopping
         early_stopping(val_loss, model)

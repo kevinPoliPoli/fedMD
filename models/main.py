@@ -76,14 +76,12 @@ def main():
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
     
-
-    #create client models
-    dataset = importlib.import_module(private_dataset_path)
-    ClientDataset = getattr(dataset, 'ClientDataset')
+    
+    #### Create client models ####
 
     from architecturesMD.resnets import _resnet
 
-    resnet_model_path = 'cifar100/resnet.py'
+    resnet_model_path = 'cifar100.resnet'
     mod = importlib.import_module(resnet_model_path)
     ClientModel = getattr(mod, 'ClientModel')    
     model_params = MODEL_PARAMS[resnet_model_path]
@@ -96,6 +94,7 @@ def main():
     state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
     custom_resnet20.load_state_dict(state_dict_without_fc, strict=False)
     
+    custom_resnet20 = custom_resnet20.to(device)
     resnet32 = _resnet([5]*3, pretrained=True, type=32).to(device)
     resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
     resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
@@ -105,27 +104,39 @@ def main():
     model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
 
     #compute upperbound
-    from architecturesMD import start_upperbound
+    """
+    from architecturesMD.upperbounds import start_upperbound
     print("UpperBound")
     start_upperbound(c_models, model_names, device)
-
-
+    """
+  
+  
+    #### Create server ####
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
+    server = Server(server_model)
 
-        
-    #### Create server ####
-    server_params = define_server_params(args, server_model, args.algorithm, opt_ckpt=None)
-    server = Server(**server_params)
 
+    #### Create client datasets ####
+    from utils import create_datasets_md as cd
+    
+    CIFAR100_images, CIFAR100_labels = cd.load_CIFAR100()
+    private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_images, CIFAR100_labels,      
+                               N_parties = 10,           
+                               classes_in_use = np.arange(16), 
+                               N_samples_per_class = 3, 
+                               data_overlap = False)
+
+    print(private_data)
+    
+    #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
   
     train_clients = setup_clients(args, c_models, Client, ClientDataset, None, device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
-    print('Clients in Total: %d' % len(train_clients))
-    
+    print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
     print("prima")
@@ -147,7 +158,7 @@ def main():
 
         users_p, _, _, _, public_data, _ = read_data(public_data_dir, public_test_data_dir, 100)
         public_dataset_round = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
-
+        #fare dataloader qua e passarlo direttamente
 
         # Select clients to train during this round
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
@@ -164,6 +175,9 @@ def main():
         print("--- Updating central model ---")
         server.update_model()
 
+def online(clients):
+    """We assume all users are always online."""
+    return clients
 
 def create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run=None, device=None):
 

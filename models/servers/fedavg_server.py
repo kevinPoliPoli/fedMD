@@ -13,8 +13,8 @@ from tqdm import tqdm
 class Server:
 
     def __init__(self, client_model):
-        self.client_model = copy.deepcopy(client_model)
-        self.device = self.client_model.device
+        #self.client_model = copy.deepcopy(client_model)
+        #self.device = self.client_model.device
         self.model = copy.deepcopy(client_model.state_dict())
         self.total_grad = 0
         self.selected_clients = []

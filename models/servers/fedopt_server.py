@@ -7,14 +7,17 @@ from .fedavg_server import Server
 
 
 class FedOptServer(Server):
-    def __init__(self, client_model, server_opt, server_lr, momentum=0, opt_ckpt=None):
+    def __init__(self, client_model, server_opt=None, server_lr=None, momentum=0, opt_ckpt=None):
+        
         super().__init__(client_model)
+        """
         print("Server optimizer:", server_opt, "with lr", server_lr, "and momentum", momentum)
         self.server_lr = server_lr
         self.server_momentum = momentum
         self.server_opt = self._get_optimizer(server_opt)
         if opt_ckpt is not None:
             self.load_optimizer_checkpoint(opt_ckpt)
+        """
 
     def train_model(self, num_epochs=1, batch_size=10, minibatch=None, clients=None, analysis=False, public_dataset = None):
         self.server_opt.zero_grad()
