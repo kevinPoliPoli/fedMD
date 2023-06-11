@@ -82,24 +82,28 @@ def main():
     ClientDataset = getattr(dataset, 'ClientDataset')
 
     from architecturesMD.resnets import _resnet
+
+    resnet_model_path = 'cifar100/resnet.py'
+    mod = importlib.import_module(resnet_model_path)
+    ClientModel = getattr(mod, 'ClientModel')    
+    model_params = MODEL_PARAMS[resnet_model_path]
+    client_model = ClientModel(*model_params, device)
+    custom_resnet20 = client_model.to(device)
+    
     resnet32 = _resnet([5]*3, pretrained=True, type=32).to(device)
     resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
     resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
 
     #add other nets
-    c_models = [resnet32, resnet44, resnet56]
-
+    c_models = [custom_resnet20, resnet32, resnet44, resnet56]
+    model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
 
     #compute upperbound
-    print("Diocane")
-    test_loader = load_full_test([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+    from architecturesMD import start_upperbound
+    print("UpperBound")
+    start_upperbound(c_models, model_names, device)
 
-    for model in c_models:
-      calculate_upperbound(model, test_loader, device)
-        
 
-    
-    
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
@@ -120,12 +124,12 @@ def main():
 
     print("prima")
     server.evaluateClients(train_clients)
+
     for c in train_clients:
       print("initializing client: " + c.id)
       c.transferLearningInit()
 
     print("dopo")
-
     server.evaluateClients(train_clients)
 
     public_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'train')
@@ -154,64 +158,6 @@ def main():
         print("--- Updating central model ---")
         server.update_model()
 
-
-
-def load_full_test(target_labels):
-    batch_size = 64
-
-    import torch
-    import torchvision
-    import torchvision.transforms as transforms
-
-    transform = transforms.Compose([
-                                          transforms.RandomCrop(32, padding=4),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                      ])
-
-    test_dataset = torchvision.datasets.CIFAR100(root='./data_test', train=True, download=True, transform=transform)
-
-    # Filter the dataset based on target_labels
-    filtered_indices = [idx for idx, label in enumerate(test_dataset.targets) if label in target_labels]
-    filtered_dataset = torch.utils.data.Subset(test_dataset, filtered_indices)
-
-    test_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=False)
-
-    return test_loader
-
-def calculate_upperbound(model, test_loader, device):
-  import torch.optim as optim
-
-  criterion = nn.CrossEntropyLoss()
-  optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)
-
-  model.train()
-  correct = 0
-  total = 0
-
-  for epoch in range(75):
-    for images, labels in test_loader:
-        images = images.to(device)
-        labels = labels.to(device)
-
-        optimizer.zero_grad()
-
-        outputs = model(images)
-
-        loss = criterion(outputs, labels)
-
-        loss.backward()
-        optimizer.step()
-
-        _, predicted = torch.max(outputs.data, 1)
-
-        total += labels.size(0)
-        correct += (predicted == labels).sum().item()
-
-    accuracy = 100 * correct / total
-
-    print(f"Accuracy at epoch {epoch+1}: {accuracy:.2f}%")
 
 def create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run=None, device=None):
 
