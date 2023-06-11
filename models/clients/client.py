@@ -12,18 +12,22 @@ from datetime import datetime
 import importlib
 import os
 
+from utils.custom_dataloader import CustomDataset
+
 class Client:
 
     def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, device=None,
                  num_workers=0, run=None, mixup=False, mixup_alpha=1.0):
+
         self._model = model
         self.id = client_id
-        self.train_data = train_data
-        self.eval_data = eval_data
-        self.trainloader = torch.utils.data.DataLoader(train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers) if self.train_data.__len__() != 0 else None
-        self.testloader = torch.utils.data.DataLoader(eval_data, batch_size=batch_size, shuffle=False, num_workers=num_workers) if self.eval_data.__len__() != 0 else None
-        self._classes = self._client_labels()
-        self.num_samples_per_class = self.number_of_samples_per_class()
+
+        self.train_data = CustomDataset(train_data)
+        self.eval_data = CustomDataset(eval_data)
+       
+        self.trainloader = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+        self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
+
         self.seed = seed
         self.device = device
         self.lr = lr
@@ -37,7 +41,6 @@ class Client:
     
 
     def transferLearningInit(self, num_epochs=150, batch_size=32):    
-      print("Initializing on private dataset client " + self.id)
       self.trainingMD(dataset = self.trainloader, num_epochs=num_epochs, Init = True)
   
     def communicateStep(self, public_dataset):

@@ -20,9 +20,10 @@ class FedOptServer(Server):
         """
 
     def train_model(self, num_epochs=1, batch_size=10, minibatch=None, clients=None, analysis=False, public_dataset = None):
-        self.server_opt.zero_grad()
+
+        #self.server_opt.zero_grad()
         sys_metrics = super(FedOptServer, self).train_model(num_epochs = num_epochs, batch_size = batch_size, public_dataset = public_dataset)
-        self._save_updates_as_pseudogradients()
+        #self._save_updates_as_pseudogradients()
         return sys_metrics
 
     def update_model(self):

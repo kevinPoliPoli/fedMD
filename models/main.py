@@ -128,13 +128,12 @@ def main():
                                N_samples_per_class = 3, 
                                data_overlap = False)
 
-    print(private_data)
     
     #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
   
-    train_clients = setup_clients(args, c_models, Client, ClientDataset, None, device)
+    train_clients = create_clients(np.arange(10), private_data, total_private_data, c_models, args, Client, run=None, device=device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
@@ -143,7 +142,6 @@ def main():
     server.evaluateClients(train_clients)
 
     for c in train_clients:
-      print("initializing client: " + c.id)
       c.transferLearningInit()
 
     print("dopo")
@@ -169,17 +167,12 @@ def main():
         _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size, public_dataset = public_dataset_round)
 
         server.evaluateClients()
-       
-
-        ##### Update server model (FedAvg) #####
-        print("--- Updating central model ---")
-        server.update_model()
 
 def online(clients):
     """We assume all users are always online."""
     return clients
 
-def create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run=None, device=None):
+def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
 
     import random
     import copy
@@ -189,35 +182,19 @@ def create_clients(train_users, test_users, train_data, test_data, models, args,
 
     client_params['run'] = run
     client_params['device'] = device
-    c_testdata = ClientDataset(test_data, users = test_users, aggregated_test = True, train=False, loading=args.where_loading, cutout=None)
+    c_testdata = total_private_data
     client_params['eval_data'] = c_testdata
-    
-    participants = train_users[0:10]
-    for u in participants:
+  
+    for u in train_users:
         model = random.choice(models)
         client_params['model'] = copy.deepcopy(model)
-        c_traindata = ClientDataset(train_data[u], train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
+        c_traindata = private_data[u]
         client_params['client_id'] = u
         client_params['train_data'] = c_traindata
         
         clients.append(Client(**client_params))
     return clients
 
-
-def setup_clients(args, models, Client, ClientDataset, run=None, device=None):
-    """Instantiates clients based on given train and test data directories.
-
-    Return:
-        all_clients: list of Client objects.
-    """
-    
-    train_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'train')
-    test_data_dir = os.path.join('..', 'data', 'cifar100', 'data', 'test')
-    
-    train_users, train_groups, test_users, test_groups, train_data, test_data = read_data(train_data_dir, test_data_dir, args.alpha)
-    train_clients = create_clients(train_users, test_users, train_data, test_data, models, args, ClientDataset, Client, run, device)
-
-    return train_clients
 
 def get_client_and_server(server_path, client_path):
     mod = importlib.import_module(server_path)
