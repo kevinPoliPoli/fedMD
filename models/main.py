@@ -124,7 +124,7 @@ def main():
     CIFAR100_images, CIFAR100_labels = cd.load_CIFAR100()
     private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_images, CIFAR100_labels,      
                                N_parties = 10,           
-                               classes_in_use = np.arange(16), 
+                               classes_in_use = np.arange(6) + 10, 
                                N_samples_per_class = 3, 
                                data_overlap = False)
 
