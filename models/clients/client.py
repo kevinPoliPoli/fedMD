@@ -38,21 +38,19 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=50, batch_size=32): 
+    def transferLearningInit(self, num_epochs=5, batch_size=32): 
       dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
       self.trainingMD(num_epochs=num_epochs, dataloader = dl)
   
     def communicateStep(self, public_dataset, batch_size):
         cd = CustomDataset(public_dataset)
         dl = torch.utils.data.DataLoader(cd, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
-
         self.model.eval()
         predictions = []
         with torch.no_grad():
             for j, data in enumerate(dl):
                 
                 input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-
                 # Forward pass
                 outputs = self.model(input_data_tensor)
         
@@ -66,8 +64,7 @@ class Client:
         consensus_tensor = torch.tensor(consensus)
         consensus_softmax = F.softmax(consensus_tensor, dim=1)
         consensus_labels = torch.argmax(consensus_softmax, dim=1)
-        print(f"labels vere: {public_dataset['y']}")
-        print(f'client {self.id} have consensus_labels = {consensus_labels}')
+        label_counts = torch.bincount(consensus_labels)
         dataset = ConsensusDataset(public_dataset, consensus_labels)
         dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)
@@ -81,7 +78,7 @@ class Client:
     def trainingMD(self, num_epochs=1, dataloader = None):
       criterion = nn.CrossEntropyLoss().to(self.device)
 
-      optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
+      optimizer = optim.SGD(self.model.parameters(), lr=0.0001, momentum = 0.9, weight_decay = 0.0005, dampening = 0, nesterov = True)
 
       losses = np.empty(num_epochs)
 

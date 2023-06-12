@@ -103,6 +103,7 @@ def load_CIFAR10():
     
     
 def generate_partial_data(X, y, class_in_use = None, verbose = False):
+    y = np.array(y) 
     if class_in_use is None:
         idx = np.ones_like(y, dtype = bool)
     else:

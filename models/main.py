@@ -88,14 +88,15 @@ def main():
     model_params = MODEL_PARAMS[resnet_model_path]
     client_model = ClientModel(*model_params, device)
     custom_resnet20 = client_model.to(device)
+
+
+    """
     model_weights_path = './architecturesMD/cifar10_custom_resnet20.pth'
-    
     print("Loading state dict of resnet20")
     state_dict = torch.load(model_weights_path)
     state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
     custom_resnet20.load_state_dict(state_dict_without_fc, strict=False)
-
-    
+    """
 
     model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
 
@@ -129,11 +130,13 @@ def main():
     private_classes = [0,2,20,63,71,82]
     
     CIFAR100_images, CIFAR100_labels = cd.load_CIFAR100()
-    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_images, CIFAR100_labels, private_classes)
+    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_images, CIFAR100_labels, private_classes, verbose=True)
+    CIFAR100_Y = np.array(CIFAR100_Y)
     
     for index, cls_ in enumerate(private_classes):        
         CIFAR100_Y[CIFAR100_Y == cls_] = index + 10
     del index, cls_
+    
     
     private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_X, CIFAR100_Y,      
                                N_parties = 10,           
@@ -147,24 +150,16 @@ def main():
     #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
-  
+
     train_clients = create_clients(np.arange(10), private_data, total_private_data, c_models, args, Client, run=None, device=device)
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
-
     
-    print("prima")
-    server.evaluateClients(train_clients)
 
     for c in train_clients:
       c.transferLearningInit()
-
-    print("dopo")
-    server.evaluateClients(train_clients)
-   
-
 
     # Start training
     for i in range(start_round, num_rounds):
