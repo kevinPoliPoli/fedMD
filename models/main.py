@@ -126,8 +126,16 @@ def main():
     #### Create client datasets ####
     from utils import create_datasets_md as cd
     
+    private_classes = [0,2,20,63,71,82]
+    
     CIFAR100_images, CIFAR100_labels = cd.load_CIFAR100()
-    private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_images, CIFAR100_labels,      
+    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_images, CIFAR100_labels, private_classes)
+    
+    for index, cls_ in enumerate(private_classes):        
+        CIFAR100_Y[CIFAR100_Y == cls_] = index + 10
+    del index, cls_
+    
+    private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_X, CIFAR100_Y,      
                                N_parties = 10,           
                                classes_in_use = np.arange(6) + 10, 
                                N_samples_per_class = 3, 

@@ -38,9 +38,9 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=150, batch_size=32): 
-      data_loader = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
-      self.trainingMD(num_epochs=num_epochs, dataloader = data_loader)
+    def transferLearningInit(self, num_epochs=50, batch_size=32): 
+      dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
+      self.trainingMD(num_epochs=num_epochs, dataloader = dl)
   
     def communicateStep(self, public_dataset, batch_size):
         cd = CustomDataset(public_dataset)

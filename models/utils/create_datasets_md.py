@@ -101,3 +101,15 @@ def load_CIFAR10():
     images = np.array(images)
     return images, labels
     
+    
+def generate_partial_data(X, y, class_in_use = None, verbose = False):
+    if class_in_use is None:
+        idx = np.ones_like(y, dtype = bool)
+    else:
+        idx = [y == i for i in class_in_use]
+        idx = np.any(idx, axis = 0)
+    X_incomplete, y_incomplete = X[idx], y[idx]
+    if verbose == True:
+        print("X shape :", X_incomplete.shape)
+        print("y shape :", y_incomplete.shape)
+    return X_incomplete, y_incomplete
