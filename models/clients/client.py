@@ -12,7 +12,7 @@ from datetime import datetime
 import importlib
 import os
 
-from utils.custom_dataloader import CustomDataset
+from utils.custom_dataloader import CustomDataset, ConsensusDataset
 
 class Client:
 
@@ -24,10 +24,8 @@ class Client:
 
         self.train_data = CustomDataset(train_data)
         self.eval_data = CustomDataset(eval_data)
-       
-        self.trainloader = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-        self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-
+        self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
+        
         self.seed = seed
         self.device = device
         self.lr = lr
@@ -40,11 +38,13 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=150, batch_size=32):    
-      self.trainingMD(dataset = self.trainloader, num_epochs=num_epochs, Init = True)
+    def transferLearningInit(self, num_epochs=150, batch_size=32): 
+      data_loader = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
+      self.trainingMD(dataset = data_loader, num_epochs=num_epochs, Init = True)
   
-    def communicateStep(self, public_dataset):
-        dl = torch.utils.data.DataLoader(public_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
+    def communicateStep(self, public_dataset, batch_size):
+        dl = torch.utils.data.DataLoader(public_dataset, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
+
         self.model.eval()
         predictions = []
         with torch.no_grad():
@@ -60,17 +60,20 @@ class Client:
               
         return predictions
       
-    def digest(self, consensus, public_dataset):
-      consensus_tensor = torch.tensor(consensus)
-      dl = torch.utils.data.DataLoader(public_dataset, batch_size=self.batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
-      self.trainingMD(consensus_tensor, Digest = True, dataset = dl)
+    def digest(self, consensus, public_dataset, batch_size, num_epochs):
+        consensus_tensor = torch.tensor(consensus)
+        consensus_softmax = F.softmax(consensus_tensor, dim=1)
+        dataset = ConsensusDataset(public_dataset, consensus_softmax)
+        dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
+        self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
 
-    def revisit(self):
-      self.trainingMD(Revisit = True, dataset = self.trainloader)
+    def revisit(self, num_epochs):
+        dl = torch.utils.data.DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+        self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
 
-    def trainingMD(self, consensus = None, Digest=False, Revisit=False, num_epochs=1, batch_size=64, dataset = None, Init = False):
+    def trainingMD(self, num_epochs=1, dataloader = None, Init = False):
       criterion = nn.CrossEntropyLoss().to(self.device)
 
       if Init:
@@ -82,24 +85,16 @@ class Client:
         optimizer = optim.Adam(parameters_to_optimize, lr=0.001, weight_decay=self.weight_decay)
       else:
         optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+
       losses = np.empty(num_epochs)
 
       for epoch in range(num_epochs):
         self.model.train()
-        
-        if Digest:
-          losses[epoch] = self.runEpochMD(dataset, optimizer, criterion, Digest=True, consensus=consensus)
-    
-        elif Revisit:
-          losses[epoch] = self.runEpochMD(dataset, optimizer, criterion, Revisit=True)
-
-        else:
-          losses[epoch] = self.runEpochMD(dataset, optimizer, criterion)
-      
+        losses[epoch] = self.runEpochMD(dataloader, optimizer, criterion)
       self.losses = losses
 
 
-    def runEpochMD(self, dl, optimizer, criterion, Digest = False, Revisit = False, consensus = None):
+    def runEpochMD(self, dl, optimizer, criterion):
       running_loss = 0.0
       i = 0
       for j, data in enumerate(dl):
@@ -107,24 +102,10 @@ class Client:
 
           optimizer.zero_grad()
           outputs = self.model(input_data_tensor)
-
-          if Digest:
-            start_index = j * self.batch_size
-            end_index = (j + 1) * self.batch_size
-      
-            consensus_batch = consensus[start_index:end_index].to(self.device)
-            _, consensus_batch_labels = torch.max(consensus_batch, 1)
-
-            loss = criterion(outputs, consensus_batch_labels)
-            loss.backward()
-            running_loss += loss.item()
-            optimizer.step()
-
-          else:
-            loss = criterion(outputs, target_data_tensor)
-            loss.backward()
-            running_loss += loss.item()
-            optimizer.step()  
+          loss = criterion(outputs, target_data_tensor)
+          loss.backward()
+          running_loss += loss.item()
+          optimizer.step()
 
           i += 1
 
@@ -156,91 +137,6 @@ class Client:
         return accuracy, test_loss
    
  
-
-    def train(self, num_epochs=1, batch_size=10, minibatch=None):
-        """Trains on self.model using the client's train_data.
-
-        Args:
-            num_epochs: Number of epochs to train. Unsupported if minibatch is provided (minibatch has only 1 epoch)
-            batch_size: Size of training batches.
-            minibatch: fraction of client's data to apply minibatch sgd,
-                None to use FedAvg
-        Return:
-            num_samples: number of samples used in training
-            update: state dictionary of the trained model
-        """
-        # Train model
-        criterion = nn.CrossEntropyLoss().to(self.device)
-        optimizer = optim.SGD(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay, momentum=self.momentum)
-        losses = np.empty(num_epochs)
-
-        for epoch in range(num_epochs):
-            self.model.train()
-            if self.mixup:
-                losses[epoch] = self.run_epoch_with_mixup(optimizer, criterion)
-            else:
-                losses[epoch] = self.run_epoch(optimizer, criterion)
-
-        self.losses = losses
-        update = self.model.state_dict()
-        return self.num_train_samples, update
-
-    def run_epoch(self, optimizer, criterion):
-        """Runs single training epoch of self.model on client's data.
-
-        Return:
-            epoch loss
-        """
-        running_loss = 0.0
-        i = 0
-        for j, data in enumerate(self.trainloader):
-            input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-            optimizer.zero_grad()
-            outputs = self.model(input_data_tensor)
-            loss = criterion(outputs, target_data_tensor)
-            loss.backward()  # gradient inside the optimizer (memory usage increases here)
-            running_loss += loss.item()
-            optimizer.step()  # update of weights
-            i += 1
-        if i == 0:
-            print("Not running epoch", self.id)
-            return 0
-        return running_loss / i
-
-    def run_epoch_with_mixup(self, optimizer, criterion):
-        running_loss = 0.0
-        i = 0
-        for j, data in enumerate(self.trainloader):
-            inputs, targets = data[0].to(self.device), data[1].to(self.device)
-            inputs, targets_a, targets_b, lam = self.mixup_data(inputs, targets)
-            optimizer.zero_grad()
-            outputs = self.model(inputs)
-            loss = self.mixup_criterion(criterion, outputs, targets_a, targets_b, lam)
-            loss.backward()  # gradient inside the optimizer (memory usage increases here)
-            running_loss += loss.item()
-            optimizer.step()  # update of weights
-            i += 1
-        if i == 0:
-            print("Not running epoch", self.id)
-            return 0
-        return running_loss / i
-
-    def mixup_data(self, x, y):
-        '''Returns mixed inputs, pairs of targets, and lambda'''
-        if self.mixup_alpha > 0:
-            lam = np.random.beta(self.mixup_alpha, self.mixup_alpha)
-        else:
-            lam = 1
-
-        batch_size = x.size()[0]
-        index = torch.randperm(batch_size).to(self.device)
-        mixed_x = lam * x + (1 - lam) * x[index, :]
-        y_a, y_b = y, y[index]
-        return mixed_x, y_a, y_b, lam
-
-    def mixup_criterion(self, criterion, pred, y_a, y_b, lam):
-        return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
-
     def test(self, batch_size, set_to_use='test'):
         """Tests self.model on self.test_data.
 

@@ -19,6 +19,7 @@ from utils.args import parse_args, check_args
 from utils.cutout import Cutout
 from utils.main_utils import *
 from utils.model_utils import read_data
+from utils.custom_dataloader import CustomDataset
 
 def main():
     args = parse_args()
@@ -130,6 +131,7 @@ def main():
 
     
     CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10()
+    
     #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
@@ -153,14 +155,15 @@ def main():
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
 
         public_dataset_round = cd.generate_alignment_data(CIFAR10_images, CIFAR10_labels, N_alignments = 5000)
-
+        public_dataset_round = CustomDataset(public_dataset_round)
+        
         # Select clients to train during this round
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
         c_ids, c_num_samples = server.get_clients_info(server.selected_clients)
         print("Selected clients:", c_ids)
 
     
-        _ = server.train_model(num_epochs=args.num_epochs, batch_size=args.batch_size, public_dataset = public_dataset_round)
+        _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 1, batch_size=64, public_dataset = public_dataset_round)
 
         server.evaluateClients()
 
