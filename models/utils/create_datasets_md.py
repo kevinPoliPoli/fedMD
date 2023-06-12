@@ -8,7 +8,7 @@ def generate_bal_private_data(X, y, N_parties=10, classes_in_use=range(11),
                               N_samples_per_class=20, data_overlap=False):
     priv_data = [None] * N_parties
     combined_idx = np.array([], dtype=np.int16)
-    y = np.array(y)  # Convert y to a NumPy array
+    y = np.array(y)  
     
     for cls in classes_in_use:
         idx = np.where(y == cls)[0]
@@ -41,6 +41,7 @@ def generate_bal_private_data(X, y, N_parties=10, classes_in_use=range(11),
 def generate_alignment_data(X, y, N_alignment = 3000):
     
     split = StratifiedShuffleSplit(n_splits=1, train_size= N_alignment)
+    y = np.array(y) 
     if N_alignment == "all":
         alignment_data = {}
         alignment_data["idx"] = np.arange(y.shape[0])

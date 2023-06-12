@@ -22,7 +22,7 @@ class ConsensusDataset(Dataset):
         self.y = consensus
         
     def __len__(self):
-        return len(self.dataset)
+        return len(self.X)
     
     def __getitem__(self, idx):
         image = self.X[idx]

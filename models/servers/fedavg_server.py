@@ -92,6 +92,9 @@ class Server:
                 sum_array.append(average_element)
             result.append(sum_array)
 
+
+        self.evaluateClients()
+
         for c in clients:
             c.digest(result, public_dataset, batch_size, num_epochs_digest)
             c.revisit(num_epochs_revisit)
@@ -107,7 +110,7 @@ class Server:
         for c in clients:
             accuracy, loss = c.evaluateFEDMD()
             avg_accuracy += accuracy
-            print(f"Accuracy for client {c.id} is {accuracy}")
+            print(f"Accuracy for client {c.id} with model {c.model.name} is {accuracy}")
             
         
         avg_accuracy = avg_accuracy / len(clients)

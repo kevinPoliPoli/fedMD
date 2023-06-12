@@ -24,7 +24,7 @@ class Client:
 
         self.train_data = CustomDataset(train_data)
         self.eval_data = CustomDataset(eval_data)
-        self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
+        self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         
         self.seed = seed
         self.device = device
@@ -40,10 +40,11 @@ class Client:
 
     def transferLearningInit(self, num_epochs=150, batch_size=32): 
       data_loader = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
-      self.trainingMD(dataset = data_loader, num_epochs=num_epochs, Init = True)
+      self.trainingMD(num_epochs=num_epochs, dataloader = data_loader)
   
     def communicateStep(self, public_dataset, batch_size):
-        dl = torch.utils.data.DataLoader(public_dataset, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
+        cd = CustomDataset(public_dataset)
+        dl = torch.utils.data.DataLoader(cd, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
 
         self.model.eval()
         predictions = []
@@ -61,9 +62,13 @@ class Client:
         return predictions
       
     def digest(self, consensus, public_dataset, batch_size, num_epochs):
+
         consensus_tensor = torch.tensor(consensus)
         consensus_softmax = F.softmax(consensus_tensor, dim=1)
-        dataset = ConsensusDataset(public_dataset, consensus_softmax)
+        consensus_labels = torch.argmax(consensus_softmax, dim=1)
+        print(f"labels vere: {public_dataset['y']}")
+        print(f'client {self.id} have consensus_labels = {consensus_labels}')
+        dataset = ConsensusDataset(public_dataset, consensus_labels)
         dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
@@ -73,18 +78,10 @@ class Client:
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
 
-    def trainingMD(self, num_epochs=1, dataloader = None, Init = False):
+    def trainingMD(self, num_epochs=1, dataloader = None):
       criterion = nn.CrossEntropyLoss().to(self.device)
 
-      if Init:
-        parameters_to_optimize = [
-        {'params': self.model.fc.parameters()},  
-        {'params': self.model.layer3.parameters()}, 
-        ]
-
-        optimizer = optim.Adam(parameters_to_optimize, lr=0.001, weight_decay=self.weight_decay)
-      else:
-        optimizer = optim.Adam(self.model.parameters(), lr=self.lr, weight_decay=self.weight_decay)
+      optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
 
       losses = np.empty(num_epochs)
 

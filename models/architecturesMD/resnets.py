@@ -52,8 +52,9 @@ class BasicBlock(nn.Module):
 
 class CifarResNet(nn.Module):
 
-    def __init__(self, block, layers, num_classes=16):
+    def __init__(self, name, block, layers, num_classes=16):
         super(CifarResNet, self).__init__()
+        self.name = name
         self.inplanes = 16
         self.conv1 = conv3x3(3, 16)
         self.bn1 = nn.BatchNorm2d(16)
@@ -106,11 +107,12 @@ class CifarResNet(nn.Module):
 
 
 def _resnet(
+    name: str, 
     layers: List[int],
     pretrained: bool = False,
     type: int = 32
 ) -> CifarResNet:
-    model = CifarResNet(BasicBlock, layers)
+    model = CifarResNet(name, BasicBlock, layers)
 
     if pretrained:
       import os

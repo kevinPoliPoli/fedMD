@@ -94,15 +94,19 @@ def main():
     state_dict = torch.load(model_weights_path)
     state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
     custom_resnet20.load_state_dict(state_dict_without_fc, strict=False)
+
     
+
+    model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
+
     custom_resnet20 = custom_resnet20.to(device)
-    resnet32 = _resnet([5]*3, pretrained=True, type=32).to(device)
-    resnet44 = _resnet([7]*3, pretrained=True, type=44).to(device)
-    resnet56 = _resnet([9]*3, pretrained=True, type=56).to(device)
+    resnet32 = _resnet(model_names[1], [5]*3, pretrained=True, type=32).to(device)
+    resnet44 = _resnet(model_names[2], [7]*3, pretrained=True, type=44).to(device)
+    resnet56 = _resnet(model_names[3], [9]*3, pretrained=True, type=56).to(device)
 
     #add other nets
     c_models = [custom_resnet20, resnet32, resnet44, resnet56]
-    model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
+    
 
     #compute upperbound
     """
@@ -141,6 +145,8 @@ def main():
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
+
+    
     print("prima")
     server.evaluateClients(train_clients)
 
@@ -149,14 +155,15 @@ def main():
 
     print("dopo")
     server.evaluateClients(train_clients)
+   
+
 
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
 
-        public_dataset_round = cd.generate_alignment_data(CIFAR10_images, CIFAR10_labels, N_alignments = 5000)
-        public_dataset_round = CustomDataset(public_dataset_round)
-        
+        public_dataset_round = cd.generate_alignment_data(CIFAR10_images, CIFAR10_labels, N_alignment = 5000)
+
         # Select clients to train during this round
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
         c_ids, c_num_samples = server.get_clients_info(server.selected_clients)
@@ -164,8 +171,6 @@ def main():
 
     
         _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 1, batch_size=64, public_dataset = public_dataset_round)
-
-        server.evaluateClients()
 
 def online(clients):
     """We assume all users are always online."""

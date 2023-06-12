@@ -10,6 +10,7 @@ class ClientModel(nn.Module):
     def __init__(self, lr, num_classes, device):
         super(ClientModel, self).__init__()
 
+        self.name = "resnet20"
         self.num_classes = 16
         self.image_channels = 3
         self.in_channels = 16
