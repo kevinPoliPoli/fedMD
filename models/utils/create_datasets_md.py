@@ -1,4 +1,7 @@
 import numpy as np
+from sklearn.model_selection import StratifiedShuffleSplit
+import torchvision
+import torchvision.transforms as transforms
 
 
 def generate_bal_private_data(X, y, N_parties=10, classes_in_use=range(11), 
@@ -33,16 +36,34 @@ def generate_bal_private_data(X, y, N_parties=10, classes_in_use=range(11),
     
     return priv_data, total_priv_data
 
-def load_CIFAR100():
-    import torchvision
-    import torchvision.transforms as transforms
 
+
+def generate_alignment_data(X, y, N_alignment = 3000):
+    
+    split = StratifiedShuffleSplit(n_splits=1, train_size= N_alignment)
+    if N_alignment == "all":
+        alignment_data = {}
+        alignment_data["idx"] = np.arange(y.shape[0])
+        alignment_data["X"] = X
+        alignment_data["y"] = y
+        return alignment_data
+    for train_index, _ in split.split(X, y):
+        X_alignment = X[train_index]
+        y_alignment = y[train_index]
+    alignment_data = {}
+    alignment_data["idx"] = train_index
+    alignment_data["X"] = X_alignment
+    alignment_data["y"] = y_alignment
+    
+    return alignment_data
+    
+def load_CIFAR100():
     transform = transforms.Compose([
-                                          transforms.RandomCrop(32, padding=4),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                      ])
+                                  transforms.RandomCrop(32, padding=4),
+                                  transforms.RandomHorizontalFlip(),
+                                  transforms.ToTensor(),
+                                  transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                   ])
 
    
     ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
@@ -57,4 +78,25 @@ def load_CIFAR100():
     images = np.array(images)
     return images, labels
 
+
+def load_CIFAR10():
+    transform = transforms.Compose([
+                                    transforms.RandomCrop(32, padding=4),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                  ])
+
+   
+    ds = torchvision.datasets.CIFAR10(root='./public_data', train=True, download=True, transform=transform)
+
+    images = []
+    labels = []
+
+    for image, label in ds:
+            images.append(np.array(image))  # Convert PIL image to NumPy array
+            labels.append(label)
+
+    images = np.array(images)
+    return images, labels
     

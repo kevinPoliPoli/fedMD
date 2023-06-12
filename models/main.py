@@ -129,6 +129,7 @@ def main():
                                data_overlap = False)
 
     
+    CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10()
     #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
@@ -147,16 +148,11 @@ def main():
     print("dopo")
     server.evaluateClients(train_clients)
 
-    public_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'train')
-    public_test_data_dir = os.path.join('..', 'data', 'cifar10', 'data', 'test')
-
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
 
-        users_p, _, _, _, public_data, _ = read_data(public_data_dir, public_test_data_dir, 100)
-        public_dataset_round = PublicDataset(public_data, users_p, public_dataset = True, train=True, loading=args.where_loading, cutout=Cutout if args.cutout else None)
-        #fare dataloader qua e passarlo direttamente
+        public_dataset_round = cd.generate_alignment_data(CIFAR10_images, CIFAR10_labels, N_alignments = 5000)
 
         # Select clients to train during this round
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
