@@ -22,6 +22,7 @@ from utils.model_utils import read_data
 from utils.custom_dataloader import CustomDataset
 from utils import create_datasets_md as cd
 from architecturesMD.cnn import _returnModel, train_models
+from architecturesMD.resnets import _resnet
 
 def main():
     args = parse_args()
@@ -79,8 +80,6 @@ def main():
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
     
-    
-      
     #compute upperbound
     """
     from architecturesMD.upperbounds import start_upperbound
@@ -94,12 +93,14 @@ def main():
     server_model = server_model
     server = Server(server_model)
 
-    #### Pretrain and create models ####
+    #### CIFAR10 ###
     CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10(train=True)
     CIFAR10_images_test, CIFAR10_labels_test = cd.load_CIFAR10(train=False)
     public_dataset = {"X": CIFAR10_images, "y": CIFAR10_labels}
     
     
+    ###CLIENT MODELS###
+    c_models = []
     #our resnet
     resnet_model_path = 'cifar100.resnet'
     mod = importlib.import_module(resnet_model_path)
@@ -107,38 +108,44 @@ def main():
     model_params = MODEL_PARAMS[resnet_model_path]
     custom_resnet20 = ClientModel(*model_params, device)
 
-    #create client models
-    models_dictionary = [{"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 256, "dropout_rate": 0.2}},
-               {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 384, "dropout_rate": 0.2}},
-               {"model_name": "2_layer_CNN", "params": {"n1": 128, 'n2': 512, "dropout_rate": 0.2}},
-               {"model_name": "2_layer_CNN", "params": {"n1": 256, "n2": 256, "dropout_rate": 0.3}},
-               {"model_name": "2_layer_CNN", "params": {"n1": 256, "n2": 512, "dropout_rate": 0.4}},
-               {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 256, "dropout_rate": 0.2}},
-               {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 192, "dropout_rate": 0.2}},
-               {"model_name": "3_layer_CNN", "params": {"n1": 128, "n2": 128, "n3": 128, "dropout_rate": 0.3}},
-               {"model_name": "3_layer_CNN", "params": {"n1": 128, "n2": 128, "n3": 192, "dropout_rate": 0.3}}
-              ]
-    
-    c_models = []
-    c_models.append(custom_resnet20)
+  
+    #other resnets
+    resnet18 = _resnet("resnet18", [3]*3)
+    resnet32 = _resnet("resnet32", [5]*3)
+    resnet44 = _resnet("resnet44", [7]*3)
+    resnet56 = _resnet("resnet56", [9]*3)
 
-    model_saved_names = ["Custom_Resnet20", "CNN_128_256", "CNN_128_384", "CNN_128_512", "CNN_256_256", "CNN_256_512", 
-                    "CNN_64_128_256", "CNN_64_128_192", "CNN_128_128_128", "CNN_128_128_192"]
-                    
-    for i, item in enumerate(models_dictionary):
+    c_models.append(custom_resnet20)
+    c_models.append(resnet18)
+    c_models.append(resnet32)
+    c_models.append(resnet44)
+    c_models.append(resnet56)
+
+    cnn_models = [
+              {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 256, "dropout_rate": 0.2}},
+              {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 384, "dropout_rate": 0.2}},
+              {"model_name": "2_layer_CNN", "params": {"n1": 128, 'n2': 512, "dropout_rate": 0.2}},
+              {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 192, "dropout_rate": 0.2}},
+              {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 256, "dropout_rate": 0.2}}
+              ]
+
+    model_saved_names = ["Custom_Resnet20", "Resnet18", "Resnet32", "Resnet44", "Resnet56", "CNN_128_256", "CNN_128_384", "CNN_128_512", "CNN_64_128_192", "CNN_64_128_256"]
+    for i, item in enumerate(cnn_models):
         model_name = item["model_name"]
         model_params = item["params"]
         tmp = _returnModel(model_name, n_classes=16, 
                                         input_shape=(32,32,3),
                                         **model_params)
-        print("model {0} : {1}".format(i, model_saved_names[i+1]))
+        print("model {0} : {1}".format(i, model_saved_names[i+5]))
         c_models.append(tmp)
-    
     del model_name, model_params, tmp
+
+    ### PRETRAIN ###
     
     pre_train_params = {"min_delta": 0.005, "patience": 3,
                      "batch_size": 128, "epochs": 20, "is_shuffle": True, 
                      "verbose": 1}
+    
     
     client_models = []
     if args.pretrained:
@@ -151,15 +158,15 @@ def main():
     else:
         model_dict = {
           "Custom_Resnet20": c_models[0],
-          "CNN_128_256": c_models[1],
-          "CNN_128_384": c_models[2],
-          "CNN_128_512": c_models[3],
-          "CNN_256_256": c_models[4],
-          "CNN_256_512": c_models[5],
-          "CNN_64_128_256": c_models[6], 
-          "CNN_64_128_192": c_models[7],
-          "CNN_128_128_128": c_models[8],
-          "CNN_128_128_192":c_models[9]
+          "Resnet18": c_models[1],
+          "Resnet32": c_models[2],
+          "Resnet44": c_models[3],
+          "Resnet56": c_models[4],
+          "CNN_128_256": c_models[5],
+          "CNN_128_384": c_models[6],
+          "CNN_128_512": c_models[7],
+          "CNN_64_128_192": c_models[8],
+          "CNN_64_128_256": c_models[9], 
         }
 
         dpath = os.path.abspath("./model_weights")
@@ -175,8 +182,8 @@ def main():
             model_dict[name].load_state_dict(state_dict)
             client_models.append(model_dict[name].to(device))
             
-     
     del CIFAR10_images, CIFAR10_labels
+
 
     #create client private datasets
     private_classes = [0,2,20,63,71,82]
@@ -240,6 +247,8 @@ def main():
 
     
         _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round, device = device)
+  
+
   
 def online(clients):
     return clients

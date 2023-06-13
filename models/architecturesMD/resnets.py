@@ -109,26 +109,6 @@ class CifarResNet(nn.Module):
 def _resnet(
     name: str, 
     layers: List[int],
-    pretrained: bool = False,
-    type: int = 32
 ) -> CifarResNet:
     model = CifarResNet(name, BasicBlock, layers)
-
-    if pretrained:
-      import os
-      import torch
-      current_dir = os.path.dirname(os.path.abspath(__file__))
-
-      if type == 32:
-        file_path = os.path.join(current_dir, 'cifar10_resnet32.pth')
-      elif type == 44:
-        file_path = os.path.join(current_dir, 'cifar10_resnet44.pth')
-      else:
-        file_path = os.path.join(current_dir, 'cifar10_resnet56.pth')
-
-      print("Loading state dict of resnet" + str(type))
-      state_dict = torch.load(file_path)
-      state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
-      model.load_state_dict(state_dict_without_fc, strict=False)
-
     return model

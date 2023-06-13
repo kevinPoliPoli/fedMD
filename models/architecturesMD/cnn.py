@@ -108,11 +108,11 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
     X_test = torch.Tensor(X_test)
     y_test = torch.LongTensor(y_test)
 
-    train_dataset = TensorDataset(X_train.to(device), y_train.to(device))
+    train_dataset = TensorDataset(X_train, y_train)
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=is_shuffle)
 
     for n, model in enumerate(models):
-        print("Training model ", n)
+        print("Training model ", model.name)
         model = model.to(device)
         criterion = nn.CrossEntropyLoss().to(device)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -127,8 +127,8 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                 train_correct = 0
 
                 for inputs, targets in train_loader:
-                    inputs = inputs
-                    targets = targets
+                    inputs = inputs.to(device)
+                    targets = targets.to(device)
 
                     optimizer.zero_grad()
                     outputs = model(inputs)
@@ -137,8 +137,14 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                     optimizer.step()
 
                     train_loss += loss.item() * inputs.size(0)
+
+                    inputs = inputs.cpu()
+                    targets = targets.cpu()
                     _, predicted = torch.max(outputs.data, 1)
-                    train_correct += (predicted == targets).sum().item()
+                    train_correct += (predicted.cpu() == targets).sum().item()
+
+
+                    
 
                 train_loss /= len(X_train)
                 train_acc = train_correct / len(X_train)
@@ -147,7 +153,10 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                 with torch.no_grad():
                   val_outputs = model(X_test.to(device))
                   _, val_predicted = torch.max(val_outputs.data, 1)
-                  val_acc = (val_predicted == y_test.to(device)).sum().item() / len(X_test)
+
+                  val_predicted = val_predicted.cpu()
+                  y_test = y_test.cpu()
+                  val_acc = (val_predicted == y_test).sum().item() / len(X_test)
 
                 if val_acc > best_val_acc + min_delta:
                     best_val_acc = val_acc
