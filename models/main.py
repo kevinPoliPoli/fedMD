@@ -20,6 +20,8 @@ from utils.cutout import Cutout
 from utils.main_utils import *
 from utils.model_utils import read_data
 from utils.custom_dataloader import CustomDataset
+from utils import create_datasets_md as cd
+from architecturesMD.cnn import _returnModel, train_models
 
 def main():
     args = parse_args()
@@ -92,44 +94,12 @@ def main():
     server_model = server_model
     server = Server(server_model)
 
-    #### Create client datasets ####
-    from utils import create_datasets_md as cd
-    
-    private_classes = [0,2,20,63,71,82]
-
+    #### Pretrain and create models ####
     CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10(train=True)
     CIFAR10_images_test, CIFAR10_labels_test = cd.load_CIFAR10(train=False)
     public_dataset = {"X": CIFAR10_images, "y": CIFAR10_labels}
     
-    CIFAR100_train_X, CIFAR100_train_y = cd.load_CIFAR100(train=True)
-    CIFAR100_test_X, CIFAR100_test_y = cd.load_CIFAR100(train=False)
-    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_train_X, CIFAR100_train_y, private_classes, verbose=True)
-    CIFAR100_X_test, CIFAR100_Y_test = cd.generate_partial_data(CIFAR100_test_X, CIFAR100_test_y, private_classes, verbose=True)
     
-    CIFAR100_Y = np.array(CIFAR100_Y)
-    CIFAR100_Y_test = np.array(CIFAR100_Y_test)
-
-    for index, cls_ in enumerate(private_classes):        
-        CIFAR100_Y[CIFAR100_Y == cls_] = index + 10
-        CIFAR100_Y_test[CIFAR100_Y_test == cls_] = index + 10
-    del index, cls_
-    
-    
-    private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_X, CIFAR100_Y,      
-                               N_parties = 10,           
-                               classes_in_use = np.arange(6) + 10, 
-                               N_samples_per_class = 3, 
-                               data_overlap = False)
-
-    X_tmp, y_tmp = cd.generate_partial_data(X = CIFAR100_X_test, y= CIFAR100_Y_test,
-                                         class_in_use = np.arange(6) + 10, 
-                                         verbose = True)
-    
-    private_test_data = {"X": X_tmp, "y": y_tmp}
-    del X_tmp, y_tmp
-    
-    from architecturesMD.cnn import _returnModel, train_models
-
     #our resnet
     resnet_model_path = 'cifar100.resnet'
     mod = importlib.import_module(resnet_model_path)
@@ -206,7 +176,37 @@ def main():
             client_models.append(model_dict[name].to(device))
             
      
-    del CIFAR10_images, CIFAR10_labels, CIFAR10_images_test, CIFAR10_labels_test, CIFAR100_X, CIFAR100_Y, CIFAR100_X_test, CIFAR100_Y_test
+    del CIFAR10_images, CIFAR10_labels
+
+    #create client private datasets
+    private_classes = [0,2,20,63,71,82]
+
+    CIFAR100_train_X, CIFAR100_train_y = cd.load_CIFAR100(train=True)
+    CIFAR100_test_X, CIFAR100_test_y = cd.load_CIFAR100(train=False)
+    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_train_X, CIFAR100_train_y, private_classes, verbose=True)
+    CIFAR100_X_test, CIFAR100_Y_test = cd.generate_partial_data(CIFAR100_test_X, CIFAR100_test_y, private_classes, verbose=True)
+    
+    CIFAR100_Y = np.array(CIFAR100_Y)
+    CIFAR100_Y_test = np.array(CIFAR100_Y_test)
+
+    for index, cls_ in enumerate(private_classes):        
+        CIFAR100_Y[CIFAR100_Y == cls_] = index + 10
+        CIFAR100_Y_test[CIFAR100_Y_test == cls_] = index + 10
+    del index, cls_
+    
+    
+    private_data, total_private_data = cd.generate_bal_private_data(CIFAR100_X, CIFAR100_Y,      
+                               N_parties = 10,           
+                               classes_in_use = np.arange(6) + 10, 
+                               N_samples_per_class = 3, 
+                               data_overlap = False)
+
+    X_tmp, y_tmp = cd.generate_partial_data(X = CIFAR100_X_test, y= CIFAR100_Y_test,
+                                         class_in_use = np.arange(6) + 10, 
+                                         verbose = True)
+    
+    private_test_data = {"X": X_tmp, "y": y_tmp}
+    del X_tmp, y_tmp, CIFAR10_images_test, CIFAR10_labels_test, CIFAR100_X, CIFAR100_Y, CIFAR100_X_test, CIFAR100_Y_test
 
     #### Start Experiment ####
     start_round = 0
@@ -245,8 +245,6 @@ def online(clients):
     return clients
 
 def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
-
-
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
