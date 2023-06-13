@@ -89,13 +89,17 @@ def main():
     
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
-    server_model = server_model.to(device)
+    server_model = server_model
     server = Server(server_model)
 
     #### Create client datasets ####
     from utils import create_datasets_md as cd
     
     private_classes = [0,2,20,63,71,82]
+
+    CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10(train=True)
+    CIFAR10_images_test, CIFAR10_labels_test = cd.load_CIFAR10(train=False)
+    public_dataset = {"X": CIFAR10_images, "y": CIFAR10_labels}
     
     CIFAR100_train_X, CIFAR100_train_y = cd.load_CIFAR100(train=True)
     CIFAR100_test_X, CIFAR100_test_y = cd.load_CIFAR100(train=False)
@@ -131,8 +135,7 @@ def main():
     mod = importlib.import_module(resnet_model_path)
     ClientModel = getattr(mod, 'ClientModel')    
     model_params = MODEL_PARAMS[resnet_model_path]
-    client_model = ClientModel(*model_params, device)
-    custom_resnet20 = client_model.to(device)
+    custom_resnet20 = ClientModel(*model_params, device)
 
     #create client models
     models_dictionary = [{"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 256, "dropout_rate": 0.2}},
@@ -170,13 +173,12 @@ def main():
     client_models = []
     if args.pretrained:
         pre_train_result = train_models(c_models, 
-                                        CIFAR100_X, CIFAR100_Y, 
-                                        CIFAR100_X_test, CIFAR100_Y_test, device,
+                                        CIFAR10_images, CIFAR10_labels, 
+                                        CIFAR10_images_test, CIFAR10_labels_test, device,
                                         save_dir="./model_weights", save_names=model_saved_names,
                                         early_stopping = True,
                                         **pre_train_params)
     else:
-
         model_dict = {
           "Custom_Resnet20": c_models[0],
           "CNN_128_256": c_models[1],
@@ -204,10 +206,8 @@ def main():
             client_models.append(model_dict[name].to(device))
             
      
-    del CIFAR100_X, CIFAR100_Y, CIFAR100_X_test, CIFAR100_Y_test
+    del CIFAR10_images, CIFAR10_labels, CIFAR10_images_test, CIFAR10_labels_test, CIFAR100_X, CIFAR100_Y, CIFAR100_X_test, CIFAR100_Y_test
 
-    CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10()
-    
     #### Start Experiment ####
     start_round = 0
     print("Start round:", start_round)
@@ -222,14 +222,16 @@ def main():
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
+    
     for c in train_clients:
       c.transferLearningInit()
+
 
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
 
-        public_dataset_round = cd.generate_alignment_data(CIFAR10_images, CIFAR10_labels, N_alignment = 5000)
+        public_dataset_round = cd.generate_alignment_data(public_dataset['X'], public_dataset['y'], N_alignment = 5000)
 
         # Select clients to train during this round
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
@@ -238,9 +240,8 @@ def main():
 
     
         _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round, device = device)
-
+  
 def online(clients):
-    """We assume all users are always online."""
     return clients
 
 def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
@@ -276,7 +277,6 @@ def get_client_and_server(server_path, client_path):
     client_name = max(list(map(lambda x: x[0], filter(lambda x: 'Client' in x[0], cls))), key=len)
     Client = getattr(mod, client_name)
     return Client, Server
-
 
 if __name__ == '__main__':
     main()

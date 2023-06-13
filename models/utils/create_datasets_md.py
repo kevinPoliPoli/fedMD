@@ -89,7 +89,9 @@ def load_CIFAR100(train=True):
     return images, labels
 
 
-def load_CIFAR10():
+def load_CIFAR10(train=True):
+
+  if train:
     transform = transforms.Compose([
                                     transforms.RandomCrop(32, padding=4),
                                     transforms.RandomHorizontalFlip(),
@@ -99,16 +101,25 @@ def load_CIFAR10():
 
    
     ds = torchvision.datasets.CIFAR10(root='./public_data', train=True, download=True, transform=transform)
+  
+  else: 
+    transform = transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+                                    ])
 
-    images = []
-    labels = []
+    ds = torchvision.datasets.CIFAR10(root='./public_data', train=False, download=True, transform=transform)
 
-    for image, label in ds:
-            images.append(np.array(image))  # Convert PIL image to NumPy array
-            labels.append(label)
 
-    images = np.array(images)
-    return images, labels
+  images = []
+  labels = []
+
+  for image, label in ds:
+      images.append(np.array(image))  # Convert PIL image to NumPy array
+      labels.append(label)
+
+  images = np.array(images)
+  return images, labels
     
     
 def generate_partial_data(X, y, class_in_use = None, verbose = False):

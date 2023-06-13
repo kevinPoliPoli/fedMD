@@ -74,40 +74,21 @@ class Server:
 
         logits = 0
         for c in clients:
-            model_input = torch.from_numpy(public_dataset["X"]).to(device)
-            output = c.model(model_input).detach()
-            logits += output
+            predictions = c.communicateStep(public_dataset, 256)
+            logits += predictions
 
-        logits /= self.N_parties    
+        logits /= len(clients)    
 
-        _, predicted = torch.max(logits, 1)
+        _, predicted = torch.max(torch.Tensor(logits), 1)
         label_counts = torch.bincount(predicted)
         print(f"labelle communicate: {label_counts}")
 
-        
-        """
-        logits.append(probabilities)
-        num_clients = len(logits)
-        num_batches = len(logits[0])
-        num_classes = len(logits[0][0])
-
-        result = []
-        for i in range(num_batches):
-            sum_array = []
-            for j in range(num_classes):
-                sum_element = 0.0
-                for k in range(num_clients):
-                    sum_element += logits[k][i][j]
-                average_element = sum_element / num_clients
-                sum_array.append(average_element)
-            result.append(sum_array)
-
-        """
+  
 
         self.evaluateClients()
 
         for c in clients:
-            c.digest(result, public_dataset, batch_size_digest, num_epochs_digest)
+            c.digest(logits, public_dataset, batch_size_digest, num_epochs_digest)
             c.revisit(num_epochs_revisit, batch_size_revisit)
         
         return sys_metrics
