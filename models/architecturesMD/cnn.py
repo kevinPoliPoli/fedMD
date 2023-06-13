@@ -108,13 +108,14 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
     X_test = torch.Tensor(X_test)
     y_test = torch.LongTensor(y_test)
 
+    train_dataset = TensorDataset(X_train.to(device), y_train.to(device))
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=is_shuffle)
+
     for n, model in enumerate(models):
+        print("Training model ", n)
         model = model.to(device)
-        print("Training model ", model.name)
         criterion = nn.CrossEntropyLoss().to(device)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
-        train_dataset = TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=is_shuffle)
         
         if early_stopping:
             best_val_acc = 0.0
@@ -126,8 +127,8 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                 train_correct = 0
 
                 for inputs, targets in train_loader:
-                    inputs = inputs.to(device)
-                    targets = targets.to(device)
+                    inputs = inputs
+                    targets = targets
 
                     optimizer.zero_grad()
                     outputs = model(inputs)
@@ -138,20 +139,15 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                     train_loss += loss.item() * inputs.size(0)
                     _, predicted = torch.max(outputs.data, 1)
                     train_correct += (predicted == targets).sum().item()
-                    
-                    inputs = inputs.cpu()
-                    targets = targets.cpu()
-
-                    
 
                 train_loss /= len(X_train)
                 train_acc = train_correct / len(X_train)
                 
                 model.eval()
                 with torch.no_grad():
-                    val_outputs = model(X_test.to(device))
-                    _, val_predicted = torch.max(val_outputs.data, 1)
-                    val_acc = (val_predicted == y_test.to(device)).sum().item() / len(X_test)
+                  val_outputs = model(X_test.to(device))
+                  _, val_predicted = torch.max(val_outputs.data, 1)
+                  val_acc = (val_predicted == y_test.to(device)).sum().item() / len(X_test)
 
                 if val_acc > best_val_acc + min_delta:
                     best_val_acc = val_acc
@@ -164,10 +160,6 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
 
                 if verbose > 0:
                     print(f"Epoch {epoch+1}/{epochs}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}")
-
-        
-        resulting_val_acc.append(val_acc)
-        record_result.append({"train_acc": train_acc, "val_acc": val_acc, "train_loss": train_loss})
 
         if save_dir is not None:
             save_dir_path = os.path.abspath(save_dir)
@@ -184,6 +176,8 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
               file_name = os.path.join(save_dir, save_names[n] + ".pth")
             
             torch.save(model.state_dict(), file_name)
+
+        torch.cuda.empty_cache()  # Free up GPU memory
 
     print("pre-train accuracy: ")
     print(resulting_val_acc)

@@ -137,7 +137,7 @@ def main():
     del model_name, model_params, tmp
     
     pre_train_params = {"min_delta": 0.005, "patience": 3,
-                     "batch_size": 64, "epochs": 20, "is_shuffle": True, 
+                     "batch_size": 128, "epochs": 20, "is_shuffle": True, 
                      "verbose": 1}
     
     client_models = []
