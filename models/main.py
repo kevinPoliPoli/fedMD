@@ -78,59 +78,30 @@ def main():
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
     
     
-    #### Create client models ####
-
-    from architecturesMD.resnets import _resnet
-
-    resnet_model_path = 'cifar100.resnet'
-    mod = importlib.import_module(resnet_model_path)
-    ClientModel = getattr(mod, 'ClientModel')    
-    model_params = MODEL_PARAMS[resnet_model_path]
-    client_model = ClientModel(*model_params, device)
-    custom_resnet20 = client_model.to(device)
-
-
-    """
-    model_weights_path = './architecturesMD/cifar10_custom_resnet20.pth'
-    print("Loading state dict of resnet20")
-    state_dict = torch.load(model_weights_path)
-    state_dict_without_fc = {k: v for k, v in state_dict.items() if not k.startswith('fc')}
-    custom_resnet20.load_state_dict(state_dict_without_fc, strict=False)
-    """
-
-    model_names = ["resnet20", "resnet32", "resnet44", "resnet56"]
-
-    custom_resnet20 = custom_resnet20.to(device)
-    resnet32 = _resnet(model_names[1], [5]*3, pretrained=True, type=32).to(device)
-    resnet44 = _resnet(model_names[2], [7]*3, pretrained=True, type=44).to(device)
-    resnet56 = _resnet(model_names[3], [9]*3, pretrained=True, type=56).to(device)
-
-    #add other nets
-    c_models = [custom_resnet20, resnet32, resnet44, resnet56]
-    
-
+      
     #compute upperbound
     """
     from architecturesMD.upperbounds import start_upperbound
     print("UpperBound")
     start_upperbound(c_models, model_names, device)
     """
-  
-  
     #### Create server ####
+    
     server_p = MODEL_PARAMS[server_model_path]
     server_model = ServerModel(*server_p, device)
     server_model = server_model.to(device)
     server = Server(server_model)
-
 
     #### Create client datasets ####
     from utils import create_datasets_md as cd
     
     private_classes = [0,2,20,63,71,82]
     
-    CIFAR100_images, CIFAR100_labels = cd.load_CIFAR100()
-    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_images, CIFAR100_labels, private_classes, verbose=True)
+    CIFAR100_train_X, CIFAR100_train_y = cd.load_CIFAR100(train=True)
+    CIFAR100_test_X, CIFAR100_test_y = cd.load_CIFAR100(train=False)
+    CIFAR100_X, CIFAR100_Y = cd.generate_partial_data(CIFAR100_train_X, CIFAR100_train_y, private_classes, verbose=True)
+    CIFAR100_X_test, CIFAR100_Y_test = cd.generate_partial_data(CIFAR100_test_X, CIFAR100_test_y, private_classes, verbose=True)
+    
     CIFAR100_Y = np.array(CIFAR100_Y)
     
     for index, cls_ in enumerate(private_classes):        
@@ -144,6 +115,66 @@ def main():
                                N_samples_per_class = 3, 
                                data_overlap = False)
 
+    X_tmp, y_tmp = cd.generate_partial_data(X = CIFAR100_X_test, y= CIFAR100_Y_test,
+                                         class_in_use = np.arange(6) + 10, 
+                                         verbose = True)
+    
+    private_test_data = {"X": X_tmp, "y": y_tmp}
+    del X_tmp, y_tmp
+    
+    from architecturesMD.cnn import CNN3LayerFCModel, CNN2LayerFCModel, train_models
+    #create client models
+    models_dictionary = [{"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 256, "dropout_rate": 0.2}},
+               {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 384, "dropout_rate": 0.2}},
+               {"model_name": "2_layer_CNN", "params": {"n1": 128, 'n2': 512, "dropout_rate": 0.2}},
+               {"model_name": "2_layer_CNN", "params": {"n1": 256, "n2": 256, "dropout_rate": 0.3}},
+               {"model_name": "2_layer_CNN", "params": {"n1": 256, "n2": 512, "dropout_rate": 0.4}},
+               {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 256, "dropout_rate": 0.2}},
+               {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 192, "dropout_rate": 0.2}},
+               {"model_name": "3_layer_CNN", "params": {"n1": 128, "n2": 192, "n3": 256, "dropout_rate": 0.2}},
+               {"model_name": "3_layer_CNN", "params": {"n1": 128, "n2": 128, "n3": 128, "dropout_rate": 0.3}},
+               {"model_name": "3_layer_CNN", "params": {"n1": 128, "n2": 128, "n3": 192, "dropout_rate": 0.3}}
+              ]
+    
+    models_import = {"2_layer_CNN": CNN2LayerFCModel, 
+                    "3_layer_CNN": CNN3LayerFCModel} 
+    
+    c_models = []
+    model_saved_names = ["CNN_128_256", "CNN_128_384", "CNN_128_512", "CNN_256_256", "CNN_256_512", 
+                    "CNN_64_128_256", "CNN_64_128_192", "CNN_128_192_256", "CNN_128_128_128", "CNN_128_128_192"]
+                    
+    for i, item in enumerate(models_dictionary):
+        model_name = item["model_name"]
+        model_params = item["params"]
+        tmp = models_import[model_name](n_classes=16, 
+                                        input_shape=(32,32,3),
+                                        **model_params)
+        print("model {0} : {1}".format(i, model_saved_names[i]))
+        print(tmp.summary())
+        c_models.append(tmp)
+    
+    del model_name, model_params, tmp
+    
+    pre_train_params = {"min_delta": 0.005, "patience": 3,
+                     "batch_size": 128, "epochs": 20, "is_shuffle": True, 
+                     "verbose": 1}
+    
+    if args.pretrain:
+        pre_train_result = train_models(c_models, 
+                                        CIFAR100_X, CIFAR100_Y, 
+                                        CIFAR100_X_test, CIFAR100_Y_test,
+                                        save_dir="./model_weights", save_names=model_saved_names,
+                                        early_stopping = True,
+                                        **pre_train_params)
+    else:
+        dpath = os.path.abspath("./model_weights")
+        model_names = os.listdir(dpath)
+        for name in model_names:
+            tmp = None
+            model_path = os.path.join(dpath, name)
+            tmp = torch.load(model_path)
+            c_models.append(tmp)
+     
     
     CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10()
     
@@ -155,8 +186,6 @@ def main():
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
-
-    
 
     for c in train_clients:
       c.transferLearningInit()
@@ -173,7 +202,7 @@ def main():
         print("Selected clients:", c_ids)
 
     
-        _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 1, batch_size=64, public_dataset = public_dataset_round)
+        _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round)
 
 def online(clients):
     """We assume all users are always online."""

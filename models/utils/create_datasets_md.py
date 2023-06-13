@@ -58,16 +58,25 @@ def generate_alignment_data(X, y, N_alignment = 3000):
     
     return alignment_data
     
-def load_CIFAR100():
-    transform = transforms.Compose([
-                                  transforms.RandomCrop(32, padding=4),
-                                  transforms.RandomHorizontalFlip(),
-                                  transforms.ToTensor(),
-                                  transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                   ])
+def load_CIFAR100(train=True):
+    
+    if train:
+        transform = transforms.Compose([
+                                    transforms.RandomCrop(32, padding=4),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                    ])
 
-   
-    ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
+    
+        ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
+    else:
+        test_transform = transforms.Compose([
+                                          transforms.ToTensor(),
+                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+                                      ])
+        
+        ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform)
 
     images = []
     labels = []

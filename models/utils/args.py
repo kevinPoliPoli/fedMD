@@ -104,6 +104,10 @@ def parse_args():
                         help='apply cutout',
                         action='store_true',
                         default=False)
+    parser.add_argument('-pretrained',
+                        help='apply pretraining',
+                        action='store_true',
+                        default=False)
 
     ## GPU ##
     parser.add_argument('-device',

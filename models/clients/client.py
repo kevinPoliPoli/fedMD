@@ -38,7 +38,7 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=5, batch_size=32): 
+    def transferLearningInit(self, num_epochs=25, batch_size=32): 
       dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
       self.trainingMD(num_epochs=num_epochs, dataloader = dl)
   
@@ -70,15 +70,15 @@ class Client:
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
 
-    def revisit(self, num_epochs):
-        dl = torch.utils.data.DataLoader(self.train_data, batch_size=self.batch_size, shuffle=True, num_workers=self.num_workers)
+    def revisit(self, num_epochs, batch_size):
+        dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)
 
 
     def trainingMD(self, num_epochs=1, dataloader = None):
       criterion = nn.CrossEntropyLoss().to(self.device)
 
-      optimizer = optim.SGD(self.model.parameters(), lr=0.0001, momentum = 0.9, weight_decay = 0.0005, dampening = 0, nesterov = True)
+      optimizer = optim.Adam(self.model.parameters(), lr=0.001)
 
       losses = np.empty(num_epochs)
 

@@ -43,7 +43,7 @@ class Server:
         self.selected_clients = np.random.choice(possible_clients, num_clients, replace=False)
         return [(c.num_train_samples, c.num_test_samples) for c in self.selected_clients]
 
-    def train_model(self, num_epochs_digest=1, num_epochs_revisit=1, batch_size=10, public_dataset = None, clients = None):
+    def train_model(self, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5, public_dataset = None, clients = None):
         """Trains self.model on given clients.
 
         Trains model on self.selected_clients if clients=None;
@@ -96,8 +96,8 @@ class Server:
         self.evaluateClients()
 
         for c in clients:
-            c.digest(result, public_dataset, batch_size, num_epochs_digest)
-            c.revisit(num_epochs_revisit)
+            c.digest(result, public_dataset, batch_size_digest, num_epochs_digest)
+            c.revisit(num_epochs_revisit, batch_size_revisit)
         
         return sys_metrics
   

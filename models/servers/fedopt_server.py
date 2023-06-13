@@ -19,10 +19,10 @@ class FedOptServer(Server):
             self.load_optimizer_checkpoint(opt_ckpt)
         """
 
-    def train_model(self, num_epochs_digest = 1, num_epochs_revisit = 1, batch_size = 10, public_dataset = None):
+    def train_model(self, num_epochs_digest = 1, num_epochs_revisit = 1, batch_size_digest = 256, batch_size_revisit = 5, public_dataset = None):
 
         #self.server_opt.zero_grad()
-        sys_metrics = super(FedOptServer, self).train_model(num_epochs_digest = num_epochs_digest, num_epochs_revisit = num_epochs_revisit, batch_size = batch_size, public_dataset = public_dataset)
+        sys_metrics = super(FedOptServer, self).train_model(num_epochs_digest = num_epochs_digest, num_epochs_revisit = num_epochs_revisit, batch_size_digest = batch_size_digest, batch_size_revisit = batch_size_revisit, public_dataset = public_dataset)
         #self._save_updates_as_pseudogradients()
         return sys_metrics
 
