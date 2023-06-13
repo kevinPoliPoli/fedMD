@@ -38,33 +38,38 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=25, batch_size=32): 
+    def transferLearningInit(self, num_epochs=5, batch_size=32): 
       dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
       self.trainingMD(num_epochs=num_epochs, dataloader = dl)
   
-    def communicateStep(self, public_dataset, batch_size):
-        cd = CustomDataset(public_dataset)
-        dl = torch.utils.data.DataLoader(cd, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
-        self.model.eval()
-        predictions = []
-        with torch.no_grad():
-            for j, data in enumerate(dl):
-                
-                input_data_tensor, target_data_tensor = data[0].to(self.device), data[1].to(self.device)
-                # Forward pass
-                outputs = self.model(input_data_tensor)
-        
-                #_, predicted = torch.max(outputs.data, 1)
-                predictions.extend(outputs.cpu().numpy())
-              
-        return predictions
+    def communicateStep(self, public_dataset):
+      self.model.eval()
+      predictions = []
+      with torch.no_grad():
+          inputs = public_dataset['X']
+          for j in range(len(inputs)):
+              input_data = public_dataset['X'][j]
+              input_data_tensor = torch.from_numpy(input_data).unsqueeze(0).to(self.device)
+
+              # Forward pass
+              outputs = self.model(input_data_tensor)
+
+              _, predicted = torch.max(outputs.data, 1)
+              label_counts = torch.bincount(predicted)
+              print(f"labelle communicate: {label_counts}")
+              predictions.extend(outputs.cpu().numpy())
+
+      return predictions
       
     def digest(self, consensus, public_dataset, batch_size, num_epochs):
 
         consensus_tensor = torch.tensor(consensus)
         consensus_softmax = F.softmax(consensus_tensor, dim=1)
         consensus_labels = torch.argmax(consensus_softmax, dim=1)
+
         label_counts = torch.bincount(consensus_labels)
+        print(f"labelle {label_counts}")
+
         dataset = ConsensusDataset(public_dataset, consensus_labels)
         dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
         self.trainingMD(num_epochs = num_epochs, dataloader = dl)

@@ -43,7 +43,7 @@ class Server:
         self.selected_clients = np.random.choice(possible_clients, num_clients, replace=False)
         return [(c.num_train_samples, c.num_test_samples) for c in self.selected_clients]
 
-    def train_model(self, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5, public_dataset = None, clients = None):
+    def train_model(self, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5, public_dataset = None, clients = None, device = None):
         """Trains self.model on given clients.
 
         Trains model on self.selected_clients if clients=None;
@@ -72,11 +72,21 @@ class Server:
                    CLIENT_TASK_KEY: {}
                    } for c in clients}
 
-        logits = []
+        logits = 0
         for c in clients:
-            probabilities = c.communicateStep(public_dataset, 64)
-            logits.append(probabilities)
+            model_input = torch.from_numpy(public_dataset["X"]).to(device)
+            output = c.model(model_input).detach()
+            logits += output
 
+        logits /= self.N_parties    
+
+        _, predicted = torch.max(logits, 1)
+        label_counts = torch.bincount(predicted)
+        print(f"labelle communicate: {label_counts}")
+
+        
+        """
+        logits.append(probabilities)
         num_clients = len(logits)
         num_batches = len(logits[0])
         num_classes = len(logits[0][0])
@@ -92,6 +102,7 @@ class Server:
                 sum_array.append(average_element)
             result.append(sum_array)
 
+        """
 
         self.evaluateClients()
 

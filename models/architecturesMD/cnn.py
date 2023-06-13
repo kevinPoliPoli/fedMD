@@ -6,10 +6,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 
 class CNN2LayerFCModel(nn.Module):
-    def __init__(self, n_classes, n1=128, n2=256, dropout_rate=0.2, input_shape=(28, 28)):
+    def __init__(self, name, n_classes, n1=128, n2=256, dropout_rate=0.2, input_shape=(28, 28)):
         super(CNN2LayerFCModel, self).__init__()
 
-        self.conv1 = nn.Conv2d(1, n1, kernel_size=3, stride=1, padding=1)
+        self.name = name
+        self.conv1 = nn.Conv2d(3, n1, kernel_size=3, stride=1, padding=1)
         self.batchnorm1 = nn.BatchNorm2d(n1)
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout2d(dropout_rate)
@@ -19,7 +20,7 @@ class CNN2LayerFCModel(nn.Module):
         self.relu2 = nn.ReLU()
         self.dropout2 = nn.Dropout2d(dropout_rate)
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(n2 * 13 * 13, n_classes)
+        self.fc = nn.Linear(n2 * 16 * 16, n_classes)
         #self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
@@ -40,10 +41,12 @@ class CNN2LayerFCModel(nn.Module):
 
 
 class CNN3LayerFCModel(nn.Module):
-    def __init__(self, n_classes, n1=128, n2=192, n3=256, dropout_rate=0.2, input_shape=(28, 28)):
+    def __init__(self, name, n_classes, n1=128, n2=192, n3=256, dropout_rate=0.2, input_shape=(28, 28)):
         super(CNN3LayerFCModel, self).__init__()
 
-        self.conv1 = nn.Conv2d(1, n1, kernel_size=3, stride=1, padding=1)
+
+        self.name = name
+        self.conv1 = nn.Conv2d(3, n1, kernel_size=3, stride=1, padding=1)
         self.batchnorm1 = nn.BatchNorm2d(n1)
         self.relu1 = nn.ReLU()
         self.dropout1 = nn.Dropout2d(dropout_rate)
@@ -58,7 +61,7 @@ class CNN3LayerFCModel(nn.Module):
         self.relu3 = nn.ReLU()
         self.dropout3 = nn.Dropout2d(dropout_rate)
         self.flatten = nn.Flatten()
-        self.fc = nn.Linear(n3 * 5 * 5, n_classes)
+        self.fc = nn.Linear(n3 * 3 * 3, n_classes)
         #self.softmax = nn.Softmax(dim=1)
 
     def forward(self, x):
@@ -82,6 +85,15 @@ class CNN3LayerFCModel(nn.Module):
         return y
 
 
+def _returnModel(name, n_classes=16, input_shape=(32,32,3), **model_params):
+  if name == "2_layer_CNN":
+    model = CNN2LayerFCModel(name, n_classes, input_shape=(32,32,3), **model_params)
+    return model
+  elif name == "3_layer_CNN":
+    model = CNN3LayerFCModel(name, n_classes, input_shape=(32,32,3), **model_params)
+    return model
+
+
 def train_models(models, X_train, y_train, X_test, y_test, device,
                  save_dir="./", save_names=None,
                  early_stopping=True, min_delta=0.001, patience=3,
@@ -91,10 +103,15 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
     record_result = []
     device = device
 
+    X_train = torch.Tensor(X_train)
+    y_train = torch.LongTensor(y_train)
+    X_test = torch.Tensor(X_test)
+    y_test = torch.LongTensor(y_test)
+
     for n, model in enumerate(models):
         print("Training model ", n)
         model = model.to(device)
-        criterion = nn.CrossEntropyLoss()
+        criterion = nn.CrossEntropyLoss().to(device)
         optimizer = optim.Adam(model.parameters(), lr=1e-3)
         train_dataset = TensorDataset(X_train, y_train)
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=is_shuffle)
@@ -181,9 +198,10 @@ def train_models(models, X_train, y_train, X_test, y_test, device,
                     raise
 
             if save_names is None:
-                file_name = save_dir + "model_{0}".format(n) + ".pth"
+              file_name = os.path.join(save_dir, "model_{0}.pth".format(n))
             else:
-                file_name = save_dir + save_names[n] + ".pth"
+              file_name = os.path.join(save_dir, save_names[n] + ".pth")
+            
             torch.save(model.state_dict(), file_name)
 
     print("pre-train accuracy: ")
