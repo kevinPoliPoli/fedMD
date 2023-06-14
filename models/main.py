@@ -131,14 +131,14 @@ def main():
 
     model_saved_names = ["Custom_Resnet20", "Resnet18", "Resnet32", "Resnet44", "Resnet56", "CNN_128_256", "CNN_128_384", "CNN_128_512", "CNN_64_128_192", "CNN_64_128_256"]
     for i, item in enumerate(cnn_models):
-        model_name = item["model_name"]
+        model_type = item["model_name"]
         model_params = item["params"]
-        tmp = _returnModel(model_name, n_classes=16, 
+        tmp = _returnModel(model_type, model_saved_names[i+5], n_classes=16, 
                                         input_shape=(32,32,3),
                                         **model_params)
         print("model {0} : {1}".format(i, model_saved_names[i+5]))
         c_models.append(tmp)
-    del model_name, model_params, tmp
+    del model_type, model_params, tmp
 
     ### PRETRAIN ###
     
@@ -220,18 +220,33 @@ def main():
     print("Start round:", start_round)
 
     if args.pretrained:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, c_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, c_models, args, Client, run=None, device=device)
     else:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, client_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, client_models, args, Client, run=None, device=device)
 
 
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
+    model_parameters = {
+      "resnet18": {"lr" :0.001, "weight_decay" : 0.004},
+      "resnet20": {"lr" :0.001, "weight_decay" : 0.004},
+      "resnet32": {"lr" :0.001, "weight_decay" : 0.004},
+      "resnet44": {"lr" :0.001, "weight_decay" : 0.004},
+      "resnet56": {"lr" :0.001, "weight_decay" : 0.004},
+      "CNN_128_256": {"lr" :0.001, "weight_decay" : None},
+      "CNN_128_384": {"lr" :0.001, "weight_decay" : None},
+      "CNN_128_512": {"lr" :0.001, "weight_decay" : None},
+      "CNN_64_128_192": {"lr" :0.001, "weight_decay" : None},
+      "CNN_64_128_256": {"lr" :0.001, "weight_decay" : None},
+    }
+    
+
     
     for c in train_clients:
-      c.transferLearningInit()
+      c.transferLearningInit(model_parameters)
+  
 
 
     # Start training
@@ -253,7 +268,7 @@ def main():
 def online(clients):
     return clients
 
-def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
+def create_clients(train_users, private_data, total_private_data, private_test_data, models, args, Client, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
@@ -261,7 +276,7 @@ def create_clients(train_users, private_data, total_private_data, models, args, 
     client_params['device'] = device
     c_testdata = total_private_data
     client_params['eval_data'] = c_testdata
-  
+    client_params['private_test'] = private_test_data
 
     for u in train_users:
         client_params['model'] = models[u]

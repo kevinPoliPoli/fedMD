@@ -83,8 +83,6 @@ class Server:
         label_counts = torch.bincount(predicted)
         print(f"labelle communicate: {label_counts}")
 
-  
-
         self.evaluateClients()
 
         for c in clients:

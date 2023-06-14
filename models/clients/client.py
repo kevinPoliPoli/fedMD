@@ -16,7 +16,7 @@ from utils.custom_dataloader import CustomDataset, ConsensusDataset
 
 class Client:
 
-    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, model, device=None,
+    def __init__(self, seed, client_id, lr, weight_decay, batch_size, momentum, train_data, eval_data, private_test, model, device=None,
                  num_workers=0, run=None, mixup=False, mixup_alpha=1.0):
 
         self._model = model
@@ -26,6 +26,9 @@ class Client:
         self.eval_data = CustomDataset(eval_data)
         self.testloader = torch.utils.data.DataLoader(self.eval_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
         
+        self.private_test_X = torch.Tensor(private_test['X'])
+        self.private_test_y = torch.Tensor(private_test['y'])
+
         self.seed = seed
         self.device = device
         self.lr = lr
@@ -38,11 +41,87 @@ class Client:
         self.mixup_alpha = mixup_alpha # α controls the strength of interpolation between feature-target pairs
     
 
-    def transferLearningInit(self, num_epochs=1, batch_size=32): 
+    def transferLearningInit(self, models_parameters, num_epochs=25, batch_size=32, min_delta=0.001, patience=10, verbose=1): 
+      print(f"Training private model: {self.model.name} of client: {self.id}")
       dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
-      self.trainingMD(num_epochs=num_epochs, dataloader = dl)
+
+      criterion = nn.CrossEntropyLoss().to(self.device)
+
+      print(f'lr of {self.model.name}:{models_parameters[self.model.name]["lr"]}')
+      print(f'wd of {self.model.name}:{models_parameters[self.model.name]["weight_decay"]}')
+
+      wd = models_parameters[self.model.name]['weight_decay']
+      if wd != None:
+        optimizer = optim.Adam(self.model.parameters(), lr=models_parameters[self.model.name]['lr'], weight_decay = models_parameters[self.model.name]['weight_decay'])
+      else:
+        optimizer = optim.Adam(self.model.parameters(), lr=models_parameters[self.model.name]['lr'])
+
+      best_val_acc = 0.0
+      patience_counter = 0
+      should_load = False
+
+      for epoch in range(num_epochs):
+          self.model.train()
+          train_loss = 0.0
+          train_correct = 0
+
+          for inputs, targets in dl:
+              inputs = inputs.to(self.device)
+              targets = targets.to(self.device)
+
+              optimizer.zero_grad()
+              outputs = self.model(inputs)
+              loss = criterion(outputs, targets)
+              loss.backward()
+              optimizer.step()
+
+              train_loss += loss.item() * inputs.size(0)
+
+              inputs = inputs.cpu()
+              targets = targets.cpu()
+              _, predicted = torch.max(outputs.data, 1)
+              train_correct += (predicted.cpu() == targets).sum().item()
+
+              train_loss /= len(self.train_data)
+              train_acc = train_correct / len(self.train_data)
+                  
+          self.model.eval()
+          with torch.no_grad():
+                  val_outputs = self.model(self.private_test_X.to(self.device))
+                  _, val_predicted = torch.max(val_outputs.data, 1)
+
+                  val_predicted = val_predicted.cpu()
+                  y_test = self.private_test_y.cpu()
+                  val_acc = (val_predicted == self.private_test_y).sum().item() / len(self.private_test_X)
+
+
+                  """
+                  if train_acc >= val_acc + 0.20:
+                    print("Train accuracy is 0.20 larger than validation accuracy. Stopping training.")
+                    # Save the model
+                    should_load = True
+                    torch.save(self.model.state_dict(), "temp_saved.pth")
+                    break
+                  """
+
+                  if val_acc == 0 or (val_acc > best_val_acc + min_delta):
+                    best_val_acc = val_acc
+                    patience_counter = 0
+                  else:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                      print("Early stopping triggered.")
+                      break
+
+                  if verbose > 0:
+                    print(f"Epoch {epoch+1}/{num_epochs}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, Val Acc: {val_acc:.4f}")
+
+      """
+      if should_load:
+        self.model.load_state_dict(torch.load("temp_saved.pth"))
+      """
+
   
-    
     def communicateStep(self, public_dataset, batch_size):
         cd = CustomDataset(public_dataset)
         dl = torch.utils.data.DataLoader(cd, batch_size=batch_size, shuffle=False, num_workers=self.num_workers) if public_dataset.__len__() != 0 else None
@@ -67,9 +146,7 @@ class Client:
         consensus_tensor = torch.tensor(consensus)
         consensus_softmax = F.softmax(consensus_tensor, dim=1)
         consensus_labels = torch.argmax(consensus_softmax, dim=1)
-
-        label_counts = torch.bincount(consensus_labels)
-        print(f"labelle {label_counts}")
+        print(f"labelle {consensus_labels}")
 
         dataset = ConsensusDataset(public_dataset, consensus_labels)
         dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
