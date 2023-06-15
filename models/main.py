@@ -239,6 +239,9 @@ def main():
         server.train_model(accuracies, num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round, device = device)
   
 
+    print(f'{num_rounds}')
+    print(f'accuracies:{accuracies}')
+    print(f'upperbounds: {upperbounds}')
     plot_accuracy_epochs(num_rounds, accuracies, upperbounds)
   
 def online(clients):
