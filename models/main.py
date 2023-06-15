@@ -187,23 +187,44 @@ def main():
     print("Start round:", start_round)
 
     if args.pretrained:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, c_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, c_models, args, Client, run=None, device=device)
     else:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, client_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, client_models, args, Client, run=None, device=device)
 
 
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
+
+    model_parameters = {
+        "resnet18": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet20": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet32": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet36": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet44": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet56": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet60": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet72": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet84": {"lr" :0.001, "weight_decay" : 0.004},
+        "resnet96": {"lr" :0.001, "weight_decay" : 0.004},
+      }
+
     
     for c in train_clients:
-      c.transferLearningInit()
+      c.transferLearningInit(model_parameters)
+
+    import copy
+    copied_models = []
+    for c in train_clients:
+      print(f"Copying {c.id} model {c.model.name} for upperbound")
+      copied_models.append(copy.deepcopy(c.model))
 
     from architecturesMD.upperbounds import start_upperbound, plot_accuracy_epochs
-    upperbounds = start_upperbound(total_private_data, private_test_data, c_models, model_names, device)
+    upperbounds = start_upperbound(total_private_data, private_test_data, copied_models, model_saved_names, device)
  
-    accuracies = [[] * clients_per_round]
+    accuracies = [[], [], [], [], [], [], [], [], [], []]
+
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
@@ -223,14 +244,14 @@ def main():
 def online(clients):
     return clients
 
-def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
+def create_clients(train_users, private_data, total_private_data, private_test_data, models, args, Client, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
     client_params['run'] = run
     client_params['device'] = device
-    c_testdata = total_private_data
-    client_params['eval_data'] = c_testdata
+    client_params['eval_data'] = total_private_data
+    client_params['private_test'] = private_test_data
   
 
     for u in train_users:

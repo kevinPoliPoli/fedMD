@@ -86,7 +86,11 @@ class Server:
             clients = self.selected_clients
         
         avg_accuracy = 0
+
+        
+
         for c in clients:
+            print(f"client: {c.id}, accuracies: {len(accuracies)}")
             accuracy, loss = c.evaluateFEDMD()
             accuracies[c.id].append(accuracy)
             avg_accuracy += accuracy
