@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchvision.utils import save_image
-
+from utils.custom_dataloader import CustomDataset
 
 class EarlyStopping:
     def __init__(self, patience=5, delta=0, path='best_model.pth'):
@@ -24,37 +24,22 @@ class EarlyStopping:
             torch.save(model.state_dict(), self.path)
 
 
-def start_upperbound(models, model_names, device):
-  test_loader = load_dataloader([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
+def start_upperbound(train_data, test_data, models, model_names, device):
+  trainset = CustomDataset(train_data)
+  testset = CustomDataset(test_data)
 
+  trainloader = torch.utils.data.DataLoader(trainset, batch_size=32, shuffle=True)
+  testloader = torch.utils.data.DataLoader(testset, batch_size=32, shuffle=True)
+
+  upperbounds = []
   for i in range(len(models)):
     print("Computing upperbound for model: " + model_names[i])
-    compute_upperbound(models[i], model_names[i], test_loader, device)
+    upperbounds.append(compute_upperbound(trainloader, testloader, models[i], model_names[i], device))
+  
+  return upperbounds
 
-def load_dataloader(target_labels):
-    batch_size = 64
 
-    import torch
-    import torchvision
-    import torchvision.transforms as transforms
-
-    transform = transforms.Compose([
-                                          transforms.RandomCrop(32, padding=4),
-                                          transforms.RandomHorizontalFlip(),
-                                          transforms.ToTensor(),
-                                          transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
-                                      ])
-
-    test_dataset = torchvision.datasets.CIFAR100(root='./data_test', train=True, download=True, transform=transform)
-
-    filtered_indices = [idx for idx, label in enumerate(test_dataset.targets) if label in target_labels]
-    filtered_dataset = torch.utils.data.Subset(test_dataset, filtered_indices)
-
-    test_loader = torch.utils.data.DataLoader(filtered_dataset, batch_size=batch_size, shuffle=True)
-
-    return test_loader
-
-def compute_upperbound(model, model_name, test_loader, device):
+def compute_upperbound(trainloader, testloader, model, model_name, device):
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0004)
     early_stopping = EarlyStopping(patience=10, delta=0.001, path=f'best_{model_name}.pth')
@@ -62,9 +47,9 @@ def compute_upperbound(model, model_name, test_loader, device):
     model.train()
     correct = 0
     total = 0
-
+    val_accuracy = 0
     for epoch in range(75):
-        for images, labels in test_loader:
+        for images, labels in trainloader:
             images = images.to(device)
             labels = labels.to(device)
 
@@ -87,7 +72,7 @@ def compute_upperbound(model, model_name, test_loader, device):
         val_total = 0
         val_correct = 0
         with torch.no_grad():
-            for val_images, val_labels in test_loader:
+            for val_images, val_labels in testloader:
                 val_images = val_images.to(device)
                 val_labels = val_labels.to(device)
 
@@ -97,7 +82,7 @@ def compute_upperbound(model, model_name, test_loader, device):
                 val_total += val_labels.size(0)
                 val_correct += (val_predicted == val_labels).sum().item()
 
-        val_loss /= len(test_loader)
+        val_loss /= len(testloader)
         val_accuracy = 100 * val_correct / val_total
         print(f"Validation accuracy at epoch {epoch+1}: {val_accuracy:.2f}%")
 
@@ -105,5 +90,25 @@ def compute_upperbound(model, model_name, test_loader, device):
         early_stopping(val_loss, model)
         if early_stopping.early_stop:
             print("Early stopping triggered.")
+            return val_accuracy
             break
+            
+    return val_accuracy
+        
+import matplotlib.pyplot as plt
+def plot_accuracy_epochs(epochs, accuracies_list, upper_bounds):
+    for i, accuracies in enumerate(accuracies_list):
+        plt.plot(range(1, epochs + 1), accuracies, label=f"Model {i + 1}")
+
+    for i, upper_bound in enumerate(upper_bounds):
+        plt.axhline(y=upper_bound, linestyle='--', color='r', label=f"Model {i + 1} Upper Bound")
+
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy vs Epoch')
+    
+    plt.legend()
+
+    plt.show()
+
 

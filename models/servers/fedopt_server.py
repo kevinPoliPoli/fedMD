@@ -7,9 +7,9 @@ from .fedavg_server import Server
 
 
 class FedOptServer(Server):
-    def __init__(self, client_model, server_opt=None, server_lr=None, momentum=0, opt_ckpt=None):
+    def __init__(self, client_model=None, server_opt=None, server_lr=None, momentum=0, opt_ckpt=None):
         
-        super().__init__(client_model)
+        super().__init__()
         """
         print("Server optimizer:", server_opt, "with lr", server_lr, "and momentum", momentum)
         self.server_lr = server_lr

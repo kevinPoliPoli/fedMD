@@ -12,10 +12,11 @@ from tqdm import tqdm
 
 class Server:
 
-    def __init__(self, client_model):
+    def __init__(self, client_model=None):
         #self.client_model = copy.deepcopy(client_model)
         #self.device = self.client_model.device
-        self.model = copy.deepcopy(client_model.state_dict())
+        if client_model != None:
+          self.model = copy.deepcopy(client_model.state_dict())
         self.total_grad = 0
         self.selected_clients = []
         self.updates = []
@@ -37,13 +38,10 @@ class Server:
         Return:
             list of (num_train_samples, num_test_samples)
         """
+        num_clients = 10
+        self.selected_clients = possible_clients
 
-        num_clients = min(num_clients, len(possible_clients))
-        np.random.seed(my_round)
-        self.selected_clients = np.random.choice(possible_clients, num_clients, replace=False)
-        return [(c.num_train_samples, c.num_test_samples) for c in self.selected_clients]
-
-    def train_model(self, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5, public_dataset = None, clients = None, device = None):
+    def train_model(self, accuracies, num_epochs_digest=1, num_epochs_revisit=4, batch_size_digest=256, batch_size_revisit=5, public_dataset = None, clients = None, device = None):
         """Trains self.model on given clients.
 
         Trains model on self.selected_clients if clients=None;
@@ -64,14 +62,7 @@ class Server:
         """
         if clients is None:
             clients = self.selected_clients
-        sys_metrics = {
-            c.id: {BYTES_WRITTEN_KEY: 0,
-                   BYTES_READ_KEY: 0,
-                   CLIENT_PARAMS_KEY: 0,
-                   CLIENT_GRAD_KEY: 0,
-                   CLIENT_TASK_KEY: {}
-                   } for c in clients}
-
+        
         logits = 0
         for c in clients:
             predictions = c.communicateStep(public_dataset, 256)
@@ -83,29 +74,28 @@ class Server:
         label_counts = torch.bincount(predicted)
         print(f"labelle communicate: {label_counts}")
 
-        self.evaluateClients()
+        self.evaluateClients(accuracies)
 
         for c in clients:
             c.digest(logits, public_dataset, batch_size_digest, num_epochs_digest)
             c.revisit(num_epochs_revisit, batch_size_revisit)
         
-        return sys_metrics
-  
-    
-    def evaluateClients(self, clients=None):
+
+    def evaluateClients(self, accuracies, clients=None):
         if clients is None:
             clients = self.selected_clients
         
         avg_accuracy = 0
         for c in clients:
             accuracy, loss = c.evaluateFEDMD()
+            accuracies[c.id].append(accuracy)
             avg_accuracy += accuracy
             print(f"Accuracy for client {c.id} with model {c.model.name} is {accuracy}")
             
         
         avg_accuracy = avg_accuracy / len(clients)
         print(f"Average Accuracy is {avg_accuracy}")
-        
+       
 
     def _update_sys_metrics(self, c, sys_metrics):
         if isinstance(c.model, torch.nn.DataParallel):

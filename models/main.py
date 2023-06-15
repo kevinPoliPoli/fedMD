@@ -12,6 +12,8 @@ import torch
 import torch.nn as nn
 from datetime import datetime
 
+from servers.fedavg_server import Server
+
 import metrics.writer as metrics_writer
 from baseline_constants import MAIN_PARAMS, MODEL_PARAMS, ACCURACY_KEY, CLIENT_PARAMS_KEY, CLIENT_GRAD_KEY, \
     CLIENT_TASK_KEY
@@ -47,51 +49,27 @@ def main():
 
     # Obtain the path to client's model (e.g. cifar10/cnn.py), client class and servers class
     public_dataset_path = 'cifar10/dataloader.py'
-    private_dataset_path = 'cifar100/dataloader.py'
 
     server_path = 'servers/%s.py' % (args.algorithm + '_server')
     client_path = 'clients/%s.py' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
-    check_init_paths([public_dataset_path, private_dataset_path, server_path, client_path])
-
     model_path = '%s.%s' % (args.dataset, args.model)
 
-    public_dataset_path = 'cifar10.dataloader'
-    private_dataset_path = 'cifar100.dataloader'
     
-    server_model_path = 'cifar10.resnet'
-  
-    server_path = 'servers.%s' % (args.algorithm + '_server')
     client_path = 'clients.%s' % (args.client_algorithm + '_client' if args.client_algorithm is not None else 'client')
 
-    server_mod = importlib.import_module(server_model_path)
-    ServerModel = getattr(server_mod, 'ClientModel')
-    pub_dataset = importlib.import_module(public_dataset_path)
-    PublicDataset = getattr(pub_dataset, 'ClientDataset')
-    
   
     # Load client and server
-    print("Running experiment with server", server_path, "and client", client_path)
-    Client, Server = get_client_and_server(server_path, client_path)
-    print("Verify client and server:", Client, Server)
+    Client = get_client(client_path)
 
     # Experiment parameters (e.g. num rounds, clients per round, lr, etc)
     tup = MAIN_PARAMS['cifar100'][args.t]
     num_rounds = args.num_rounds if args.num_rounds != -1 else tup[0]
     eval_every = args.eval_every if args.eval_every != -1 else tup[1]
     clients_per_round = args.clients_per_round if args.clients_per_round != -1 else tup[2]
-    
-    #compute upperbound
-    """
-    from architecturesMD.upperbounds import start_upperbound
-    print("UpperBound")
-    start_upperbound(c_models, model_names, device)
-    """
+
+
     #### Create server ####
-    
-    server_p = MODEL_PARAMS[server_model_path]
-    server_model = ServerModel(*server_p, device)
-    server_model = server_model
-    server = Server(server_model)
+    server = Server()
 
     #### CIFAR10 ###
     CIFAR10_images, CIFAR10_labels = cd.load_CIFAR10(train=True)
@@ -112,41 +90,31 @@ def main():
     #other resnets
     resnet18 = _resnet("resnet18", [3]*3)
     resnet32 = _resnet("resnet32", [5]*3)
+    resnet36 = _resnet("resnet36", [6]*3)
     resnet44 = _resnet("resnet44", [7]*3)
     resnet56 = _resnet("resnet56", [9]*3)
+    resnet60 = _resnet("resnet60", [10]*3)
+    resnet72 = _resnet("resnet72", [12]*3)
+    resnet84 = _resnet("resnet84", [14]*3)
+    resnet96 = _resnet("resnet96", [16]*3)
 
     c_models.append(custom_resnet20)
     c_models.append(resnet18)
     c_models.append(resnet32)
+    c_models.append(resnet36)
     c_models.append(resnet44)
     c_models.append(resnet56)
-
-    cnn_models = [
-              {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 256, "dropout_rate": 0.2}},
-              {"model_name": "2_layer_CNN", "params": {"n1": 128, "n2": 384, "dropout_rate": 0.2}},
-              {"model_name": "2_layer_CNN", "params": {"n1": 128, 'n2': 512, "dropout_rate": 0.2}},
-              {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 192, "dropout_rate": 0.2}},
-              {"model_name": "3_layer_CNN", "params": {"n1": 64, "n2": 128, "n3": 256, "dropout_rate": 0.2}}
-              ]
-
-    model_saved_names = ["Custom_Resnet20", "Resnet18", "Resnet32", "Resnet44", "Resnet56", "CNN_128_256", "CNN_128_384", "CNN_128_512", "CNN_64_128_192", "CNN_64_128_256"]
-    for i, item in enumerate(cnn_models):
-        model_type = item["model_name"]
-        model_params = item["params"]
-        tmp = _returnModel(model_type, model_saved_names[i+5], n_classes=16, 
-                                        input_shape=(32,32,3),
-                                        **model_params)
-        print("model {0} : {1}".format(i, model_saved_names[i+5]))
-        c_models.append(tmp)
-    del model_type, model_params, tmp
+    c_models.append(resnet60)
+    c_models.append(resnet72)
+    c_models.append(resnet84)
+    c_models.append(resnet96)
 
     ### PRETRAIN ###
-    
     pre_train_params = {"min_delta": 0.005, "patience": 3,
                      "batch_size": 128, "epochs": 20, "is_shuffle": True, 
                      "verbose": 1}
     
-    
+    model_saved_names = ["Custom_Resnet20", "Resnet18", "Resnet32", "Resnet36", "Resnet44", "Resnet56", "Resnet60", "Resnet72", "Resnet84", "Resnet96"]
     client_models = []
     if args.pretrained:
         pre_train_result = train_models(c_models, 
@@ -160,13 +128,13 @@ def main():
           "Custom_Resnet20": c_models[0],
           "Resnet18": c_models[1],
           "Resnet32": c_models[2],
-          "Resnet44": c_models[3],
-          "Resnet56": c_models[4],
-          "CNN_128_256": c_models[5],
-          "CNN_128_384": c_models[6],
-          "CNN_128_512": c_models[7],
-          "CNN_64_128_192": c_models[8],
-          "CNN_64_128_256": c_models[9], 
+          "Resnet36": c_models[3],
+          "Resnet44": c_models[4],
+          "Resnet56": c_models[5],
+          "Resnet60": c_models[6],
+          "Resnet72": c_models[7],
+          "Resnet84": c_models[8],
+          "Resnet96": c_models[9], 
         }
 
         dpath = os.path.abspath("./model_weights")
@@ -183,7 +151,6 @@ def main():
             client_models.append(model_dict[name].to(device))
             
     del CIFAR10_images, CIFAR10_labels
-
 
     #create client private datasets
     private_classes = [0,2,20,63,71,82]
@@ -220,35 +187,23 @@ def main():
     print("Start round:", start_round)
 
     if args.pretrained:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, c_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, c_models, args, Client, run=None, device=device)
     else:
-      train_clients = create_clients(np.arange(10), private_data, total_private_data, private_test_data, client_models, args, Client, run=None, device=device)
+      train_clients = create_clients(np.arange(10), private_data, total_private_data, client_models, args, Client, run=None, device=device)
 
 
     train_client_ids, train_client_num_samples = server.get_clients_info(train_clients)
     print('Clients in Total: %d' % len(train_clients))    
     server.set_num_clients(len(train_clients))
 
-    model_parameters = {
-      "resnet18": {"lr" :0.001, "weight_decay" : 0.004},
-      "resnet20": {"lr" :0.001, "weight_decay" : 0.004},
-      "resnet32": {"lr" :0.001, "weight_decay" : 0.004},
-      "resnet44": {"lr" :0.001, "weight_decay" : 0.004},
-      "resnet56": {"lr" :0.001, "weight_decay" : 0.004},
-      "CNN_128_256": {"lr" :0.001, "weight_decay" : None},
-      "CNN_128_384": {"lr" :0.001, "weight_decay" : None},
-      "CNN_128_512": {"lr" :0.001, "weight_decay" : None},
-      "CNN_64_128_192": {"lr" :0.001, "weight_decay" : None},
-      "CNN_64_128_256": {"lr" :0.001, "weight_decay" : None},
-    }
-    
-
     
     for c in train_clients:
-      c.transferLearningInit(model_parameters)
-  
+      c.transferLearningInit()
 
-
+    from architecturesMD.upperbounds import start_upperbound, plot_accuracy_epochs
+    upperbounds = start_upperbound(total_private_data, private_test_data, c_models, model_names, device)
+ 
+    accuracies = [[] * clients_per_round]
     # Start training
     for i in range(start_round, num_rounds):
         print('--- Round %d of %d: Training %d Clients ---' % (i + 1, num_rounds, clients_per_round))
@@ -259,16 +214,16 @@ def main():
         server.select_clients(i, online(train_clients), num_clients=clients_per_round)
         c_ids, c_num_samples = server.get_clients_info(server.selected_clients)
         print("Selected clients:", c_ids)
-
     
-        _ = server.train_model(num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round, device = device)
+        server.train_model(accuracies, num_epochs_digest = 1, num_epochs_revisit = 4, batch_size_digest=256, batch_size_revisit = 5, public_dataset = public_dataset_round, device = device)
   
 
+    plot_accuracy_epochs(num_rounds, accuracies, upperbounds)
   
 def online(clients):
     return clients
 
-def create_clients(train_users, private_data, total_private_data, private_test_data, models, args, Client, run=None, device=None):
+def create_clients(train_users, private_data, total_private_data, models, args, Client, run=None, device=None):
     clients = []
     client_params = define_client_params(args.client_algorithm, args)
 
@@ -276,7 +231,7 @@ def create_clients(train_users, private_data, total_private_data, private_test_d
     client_params['device'] = device
     c_testdata = total_private_data
     client_params['eval_data'] = c_testdata
-    client_params['private_test'] = private_test_data
+  
 
     for u in train_users:
         client_params['model'] = models[u]
@@ -288,17 +243,12 @@ def create_clients(train_users, private_data, total_private_data, private_test_d
     return clients
 
 
-def get_client_and_server(server_path, client_path):
-    mod = importlib.import_module(server_path)
-    cls = inspect.getmembers(mod, inspect.isclass)
-    server_name = server_path.split('.')[1].split('_server')[0]
-    server_name = list(map(lambda x: x[0], filter(lambda x: 'Server' in x[0] and server_name in x[0].lower(), cls)))[0]
-    Server = getattr(mod, server_name)
+def get_client(client_path):
     mod = importlib.import_module(client_path)
     cls = inspect.getmembers(mod, inspect.isclass)
     client_name = max(list(map(lambda x: x[0], filter(lambda x: 'Client' in x[0], cls))), key=len)
     Client = getattr(mod, client_name)
-    return Client, Server
+    return Client
 
 if __name__ == '__main__':
     main()
