@@ -58,7 +58,7 @@ def generate_alignment_data(X, y, N_alignment = 3000):
     
     return alignment_data
     
-def load_CIFAR100(train=True):
+def load_CIFAR100(train=True, label_type="fine"):
     
     if train:
         transform = transforms.Compose([
@@ -68,15 +68,23 @@ def load_CIFAR100(train=True):
                                     transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                                     ])
 
-    
-        ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
+        if label_type == "fine":
+            ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
+        else:
+            ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform, coarse=True)
+
     else:
         test_transform = transforms.Compose([
                                           transforms.ToTensor(),
                                           transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                                       ])
         
-        ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform)
+        
+        if label_type == "fine":
+            ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform)
+        else:
+            ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform, coarse=True)
+
 
     images = []
     labels = []
@@ -134,3 +142,39 @@ def generate_partial_data(X, y, class_in_use = None, verbose = False):
         print("X shape :", X_incomplete.shape)
         print("y shape :", y_incomplete.shape)
     return X_incomplete, y_incomplete
+
+
+
+def generate_imbal_CIFAR_private_data(X, y, y_super, classes_per_party, N_parties,
+                                      samples_per_class=7):
+    priv_data = [None] * N_parties
+    combined_idxs = []
+    count = 0
+    y = np.array(y) 
+    y_super = np.array(y_super) 
+    for subcls_list in classes_per_party:
+        idxs_per_party = []
+        for c in subcls_list:
+            idxs = np.flatnonzero(y == c)
+            idxs = np.random.choice(idxs, samples_per_class, replace=False)
+            idxs_per_party.append(idxs)
+        idxs_per_party = np.hstack(idxs_per_party)
+        combined_idxs.append(idxs_per_party)
+        
+        dict_to_add = {}
+        dict_to_add["idx"] = idxs_per_party
+        dict_to_add["X"] = X[idxs_per_party]
+        #dict_to_add["y"] = y[idxs_per_party]
+        #dict_to_add["y_super"] = y_super[idxs_per_party]
+        dict_to_add["y"] = y_super[idxs_per_party]
+        priv_data[count] = dict_to_add
+        count += 1
+    
+    combined_idxs = np.hstack(combined_idxs)
+    total_priv_data = {}
+    total_priv_data["idx"] = combined_idxs
+    total_priv_data["X"] = X[combined_idxs]
+    #total_priv_data["y"] = y[combined_idxs]
+    #total_priv_data["y_super"] = y_super[combined_idxs]
+    total_priv_data["y"] = y_super[combined_idxs]
+    return priv_data, total_priv_data
