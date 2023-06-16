@@ -240,8 +240,8 @@ def main():
   
 
     print(f'{num_rounds}')
-    print(f'accuracies:{accuracies}')
-    print(f'upperbounds: {upperbounds}')
+    print(f'accuracies:{accuracies}, len:{len(accuracies[0])}')
+    print(f'upperbounds: {upperbounds}, len:{len(upperbounds)}')
     plot_accuracy_epochs(num_rounds, accuracies, upperbounds)
   
 def online(clients):

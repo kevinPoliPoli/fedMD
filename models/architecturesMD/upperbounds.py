@@ -96,19 +96,24 @@ def compute_upperbound(trainloader, testloader, model, model_name, device):
     return val_accuracy
         
 import matplotlib.pyplot as plt
+
 def plot_accuracy_epochs(epochs, accuracies_list, upper_bounds):
     for i, accuracies in enumerate(accuracies_list):
-        plt.plot(range(1, epochs + 1), accuracies, label=f"Model {i + 1}")
+        color = plt.cm.get_cmap('tab10')(i)
+        plt.plot(range(1, epochs + 1), accuracies, label=f"Model {i + 1}", color=color)
 
     for i, upper_bound in enumerate(upper_bounds):
-        plt.axhline(y=upper_bound, linestyle='--', color='r', label=f"Model {i + 1} Upper Bound")
+        color = plt.cm.get_cmap('tab10')(i)
+        plt.axhline(y=upper_bound, linestyle='--', label=f"Model {i + 1} Upper Bound", color=color, xmin=3/epochs, xmax=1)
 
-    plt.xlabel('Epoch')
+
+    plt.xlabel('Round')
     plt.ylabel('Accuracy')
-    plt.title('Accuracy vs Epoch')
-    
-    plt.legend()
+    plt.title('CIFAR100 I.I.D.')
 
+    plt.xticks(range(1, epochs + 1))  
+
+    plt.legend()
     plt.show()
 
 
