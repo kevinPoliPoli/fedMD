@@ -46,10 +46,6 @@ class Client:
       dl = torch.utils.data.DataLoader(self.train_data, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)
 
       criterion = nn.CrossEntropyLoss().to(self.device)
-
-      print(f'lr of {self.model.name}:{models_parameters[self.model.name]["lr"]}')
-      print(f'wd of {self.model.name}:{models_parameters[self.model.name]["weight_decay"]}')
-
       wd = models_parameters[self.model.name]['weight_decay']
       if wd != None:
         optimizer = optim.Adam(self.model.parameters(), lr=models_parameters[self.model.name]['lr'], weight_decay = models_parameters[self.model.name]['weight_decay'])
@@ -143,9 +139,6 @@ class Client:
         consensus_tensor = torch.tensor(consensus)
         consensus_softmax = F.softmax(consensus_tensor, dim=1)
         consensus_labels = torch.argmax(consensus_softmax, dim=1)
-
-        label_counts = torch.bincount(consensus_labels)
-        print(f"labelle {label_counts}")
 
         dataset = ConsensusDataset(public_dataset, consensus_labels)
         dl = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=self.num_workers)

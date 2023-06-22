@@ -68,10 +68,20 @@ def load_CIFAR100(train=True, label_type="fine"):
                                     transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                                     ])
 
-        if label_type == "fine":
-            ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
-        else:
-            ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform, coarse=True)
+        ds = torchvision.datasets.CIFAR100(root='./private_data', train=True, download=True, transform=transform)
+
+        if label_type == "coarse":
+          coarse_labels = np.array([ 4,  1, 14,  8,  0,  6,  7,  7, 18,  3,
+                                   3, 14,  9, 18,  7, 11,  3,  9,  7, 11,
+                                   6, 11,  5, 10,  7,  6, 13, 15,  3, 15, 
+                                   0, 11,  1, 10, 12, 14, 16,  9, 11,  5,
+                                   5, 19,  8,  8, 15, 13, 14, 17, 18, 10,
+                                   16, 4, 17,  4,  2,  0, 17,  4, 18, 17,
+                                   10, 3,  2, 12, 12, 16, 12,  1,  9, 19, 
+                                   2, 10,  0,  1, 16, 12,  9, 13, 15, 13,
+                                  16, 19,  2,  4,  6, 19,  5,  5,  8, 19,
+                                  18,  1,  2, 15,  6,  0, 17,  8, 14, 13])
+          ds.targets = coarse_labels[ds.targets]
 
     else:
         test_transform = transforms.Compose([
@@ -79,11 +89,20 @@ def load_CIFAR100(train=True, label_type="fine"):
                                           transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
                                       ])
         
-        
-        if label_type == "fine":
-            ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform)
-        else:
-            ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform, coarse=True)
+        ds = torchvision.datasets.CIFAR100(root='./private_data', train=False, download=True, transform=test_transform)
+
+        if label_type == "coarse":
+          coarse_labels = np.array([ 4,  1, 14,  8,  0,  6,  7,  7, 18,  3,
+                                   3, 14,  9, 18,  7, 11,  3,  9,  7, 11,
+                                   6, 11,  5, 10,  7,  6, 13, 15,  3, 15, 
+                                   0, 11,  1, 10, 12, 14, 16,  9, 11,  5,
+                                   5, 19,  8,  8, 15, 13, 14, 17, 18, 10,
+                                   16, 4, 17,  4,  2,  0, 17,  4, 18, 17,
+                                   10, 3,  2, 12, 12, 16, 12,  1,  9, 19, 
+                                   2, 10,  0,  1, 16, 12,  9, 13, 15, 13,
+                                  16, 19,  2,  4,  6, 19,  5,  5,  8, 19,
+                                  18,  1,  2, 15,  6,  0, 17,  8, 14, 13])
+          ds.targets = coarse_labels[ds.targets]
 
 
     images = []

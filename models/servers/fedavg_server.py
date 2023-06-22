@@ -71,8 +71,6 @@ class Server:
         logits /= len(clients)    
 
         _, predicted = torch.max(torch.Tensor(logits), 1)
-        label_counts = torch.bincount(predicted)
-        print(f"labelle communicate: {label_counts}")
 
         self.evaluateClients(accuracies)
 
@@ -90,7 +88,6 @@ class Server:
         
 
         for c in clients:
-            print(f"client: {c.id}, accuracies: {len(accuracies)}")
             accuracy, loss = c.evaluateFEDMD()
             accuracies[c.id].append(accuracy)
             avg_accuracy += accuracy

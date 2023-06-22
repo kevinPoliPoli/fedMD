@@ -275,10 +275,6 @@ def main():
             model_dict[name].load_state_dict(state_dict)
             client_models.append(model_dict[name].to(device))
             
-    del CIFAR10_images, CIFAR10_labels
-    
-    
-    
     start_round = 0
     print("Start round:", start_round)
 
